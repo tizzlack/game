@@ -1,0 +1,55 @@
+; Engine configuration file.
+; Godot 4.4+
+
+config_version=5
+
+[application]
+
+config/name="GLOWLINE"
+config/description="Neon Run & Gun Roguelite"
+config/version="1.0.0"
+run/main_scene="res://scenes/main.tscn"
+config/use_custom_user_dir=true
+config/custom_user_dir_name="Glowline"
+config/features=PackedStringArray("4.4", "GL Compatibility")
+boot_splash/bg_color=Color(0, 0, 0, 1)
+boot_splash/show_image=false
+config/icon="res://icon.svg"
+
+[autoload]
+
+L="*res://scripts/autoload/loc.gd"
+Save="*res://scripts/autoload/save.gd"
+Controls="*res://scripts/autoload/controls.gd"
+Sfx="*res://scripts/autoload/audio.gd"
+SteamService="*res://scripts/autoload/steam_service.gd"
+Run="*res://scripts/autoload/run.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/window_width_override=1600
+window/size/window_height_override=900
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[layer_names]
+
+2d_physics/layer_1="world"
+2d_physics/layer_2="player"
+2d_physics/layer_3="enemies"
+2d_physics/layer_4="platforms"
+
+[physics]
+
+common/physics_ticks_per_second=120
+common/max_physics_steps_per_frame=12
+2d/default_gravity=1900.0
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+viewport/hdr_2d=true
+environment/defaults/default_clear_color=Color(0, 0, 0, 1)

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <filter id="g" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="256" height="256" rx="40" fill="#05040c"/>
+  <g filter="url(#g)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <polyline points="20,200 70,200 100,170 150,170 175,205 236,205" stroke="#7fffd0" stroke-width="6"/>
+    <circle cx="118" cy="62" r="13" stroke="#cfeaff" stroke-width="7"/>
+    <line x1="118" y1="76" x2="112" y2="122" stroke="#cfeaff" stroke-width="7"/>
+    <polyline points="112,122 96,146 84,166" stroke="#cfeaff" stroke-width="7"/>
+    <polyline points="112,122 128,144 134,166" stroke="#cfeaff" stroke-width="7"/>
+    <polyline points="116,88 140,98 170,92" stroke="#cfeaff" stroke-width="7"/>
+    <line x1="170" y1="92" x2="198" y2="86" stroke="#6fd8ff" stroke-width="9"/>
+    <line x1="208" y1="84" x2="240" y2="78" stroke="#ff5d8a" stroke-width="5"/>
+  </g>
+</svg>

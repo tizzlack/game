@@ -1,0 +1,5 @@
+.godot/
+/build/
+/export/
+*.translation
+steam_appid.txt
