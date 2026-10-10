@@ -41,7 +41,7 @@ func _ai(delta: float, p) -> void:
 				cd = randf_range(2.4, 3.2)
 
 func _draw() -> void:
-	var p := Figure.pose(0.0, 0.0, facing, is_on_floor(), aim, 22.0, velocity.y)
+	var p := Figure.pose(0.0, 0.0, facing, grounded(), aim, 22.0, velocity.y)
 	Figure.draw(self, p, draw_color(), 2.0, 1.0)
 	last_pose = p
 	draw_visor(p, aim, Color(1.0, 0.85, 0.9))

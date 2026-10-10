@@ -21,6 +21,10 @@ var start_section := 0
 var frames := 0
 var slow_frames := 0
 var game_over_seen := false
+var net_role := ""
+var net_mode := "coop"
+var net_started := false
+var snaps_seen := 0
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -41,10 +45,22 @@ func _ready() -> void:
 			start_section = int(a.substr(10))
 		elif a.begins_with("--every="):
 			shot_every = float(a.substr(8))
+		elif a.begins_with("--net="):
+			net_role = a.substr(6)
+		elif a.begins_with("--netmode="):
+			net_mode = a.substr(10)
 	if shots_dir != "":
 		DirAccess.make_dir_recursive_absolute(shots_dir)
 	Save.data["bank"] = maxi(Save.data["bank"], 5000)
-	if mode == "menu":
+	if net_role != "":
+		mode = "net"
+		Net.my_name = "Bot-" + net_role
+		if net_role == "host":
+			Net.host_lan()
+			Net.set_mode(net_mode)
+		else:
+			Net.join_lan("127.0.0.1")
+	elif mode == "menu":
 		main.show_menu()
 	else:
 		opts["seed"] = 12345
@@ -71,11 +87,30 @@ func _process(delta: float) -> void:
 		slow_frames += 1
 	if t > duration:
 		print("[autotest] done frames=%d slow=%d fps=%d score=%d kills=%d label=%s" % [frames, slow_frames, Engine.get_frames_per_second(), Run.score, Run.kills, Run.label()])
+		if mode == "net" and main.current and main.current.has_method("start_section"):
+			var gg = main.current
+			var rp: Array = []
+			for r in gg.remotes.values():
+				rp.append("%s@%s dead=%s" % [r.display_name, str(r.global_position.round()), str(r.dead)])
+			print("[autotest] net role=%s remotes=%s enemies=%d puppets=%s versus=%s scores=%s" % [net_role, str(rp), gg.enemies_by_id.size(), str(not Net.is_host), str(gg.versus), str(gg.pvp_scores)])
 		_shot("end")
 		get_tree().quit()
 		return
 	if mode == "menu":
 		_menu_tour(delta)
+		return
+	if mode == "net" and not net_started:
+		if Net.in_game:
+			net_started = true
+			print("[autotest] net game started, players=", Net.players.size())
+		elif net_role == "host":
+			if Net.all_ready():
+				Net.start_game()
+		elif Net.players.has(Net.my_id()) and not Net.players[Net.my_id()].get("ready", false) and int(t * 10) % 10 == 0:
+			Net.set_ready(true)
+		if t > 25.0 and not net_started:
+			print("[autotest] net: no game started, players=", Net.players.size())
+			duration = t
 		return
 	var g = main.current
 	if g == null or not g.has_method("start_section"):
@@ -128,6 +163,12 @@ func _drive(g, p, delta: float) -> void:
 		dir = 1.0 if sin(t * 0.7) > 0.0 else -1.0
 	elif g.goal and g.level.get("boss", false):
 		dir = signf(g.goal.position.x - pp.x)
+	if g.versus:
+		for r in g.remotes.values():
+			if is_instance_valid(r) and not r.dead and r.has_state:
+				target = r
+				var dx: float = r.global_position.x - pp.x
+				dir = signf(dx) if absf(dx) > 120.0 else (1.0 if sin(t * 1.3) > 0.0 else -1.0)
 	if target:
 		p.aim_override = (target.global_position - (pp + Vector2(0, -12))).normalized()
 	else:

@@ -33,6 +33,43 @@ func generate(seed_value: int, diff: float, length: float, boss: bool, tutorial:
 		_level(length, tutorial)
 	return out
 
+# Versus-Arena: kompaktes, abwechslungsreiches Gelände ohne Gegner, mit Spawnpunkten
+func generate_versus(seed_value: int) -> Dictionary:
+	rng.seed = seed_value
+	d = 1.0
+	enemy_mult = 0.0
+	out = {"ground": [], "blocks": [], "ledges": [], "spawns": [], "coins": [], "checkpoints": [], "hints": [],
+		"decor": [], "goal": Vector2.ZERO, "length": 0.0, "boss": false, "boss_pos": Vector2.ZERO, "start": Vector2(80, BASE_Y - 40),
+		"bottom": BOTTOM, "kill_y": KILL_Y, "arena": Rect2(), "pvp_spawns": []}
+	cur = PackedVector2Array()
+	x = -420.0
+	y = BASE_Y
+	_pt(x, y)
+	out["blocks"].append({"rect": Rect2(-480, BASE_Y - 1200, 60, 1200 + 1500), "kind": "wall"})
+	_flat(500.0, 4.0)
+	var plan := ["mountain", "platforms", "canyon", "boxes", "hill", "steps"]
+	for i in 4:
+		match plan[rng.randi() % plan.size()]:
+			"mountain": _chunk_mountain()
+			"platforms": _chunk_platforms()
+			"canyon": _chunk_canyon()
+			"boxes": _chunk_boxes()
+			"hill": _chunk_hill()
+			"steps": _chunk_steps()
+	_flat(400.0, 4.0)
+	_end_piece()
+	_block(Rect2(x - 20.0, y - 1200.0, 60.0, 1200.0 + 1500.0), "wall")
+	out["length"] = x
+	out["spawns"].clear()
+	out["coins"].clear()
+	var sx := 0.0
+	while sx < x - 100.0:
+		var gy := ground_y_at(sx)
+		if gy != INF:
+			out["pvp_spawns"].append(Vector2(sx, gy - 40.0))
+		sx += 260.0
+	return out
+
 # --- Grundbausteine ---
 func _pt(px: float, py: float) -> void:
 	x = px

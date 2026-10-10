@@ -44,6 +44,10 @@ func _ready() -> void:
 	fade_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	fade_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	fl.add_child(fade_rect)
+	Net.session_started.connect(func(opts): fade(func(): start_run({"seed": opts["seed"], "net": opts["mode"], "weapon": Save.data.get("weapon", "blaster")})))
+	Net.session_ended.connect(func():
+		if current and current.has_method("start_section"):
+			fade(show_menu))
 	var args := OS.get_cmdline_user_args()
 	if "--autotest" in args:
 		var bot = load("res://scripts/dev/autotest.gd").new()
@@ -91,6 +95,7 @@ func start_run(opts: Dictionary) -> void:
 	var g = Game.new()
 	g.main = self
 	g.quit_to_menu.connect(func(): fade(show_menu))
+	g.to_lobby.connect(func(): fade(show_menu))
 	g.restart_run.connect(func(): fade(func(): start_run(last_opts)))
 	_swap(g)
 

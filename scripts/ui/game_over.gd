@@ -10,6 +10,8 @@ signal finish_run
 
 var summary: Dictionary = {}
 var victory_pending := false
+var net_mode := false
+var pvp_scores: Dictionary = {}
 var first_btn: Button
 
 func _ready() -> void:
@@ -43,7 +45,32 @@ func _build_victory_choice(v: VBoxContainer) -> void:
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(hint)
 
+func _build_pvp(v: VBoxContainer) -> void:
+	var won: bool = summary.get("victory", false)
+	v.add_child(UI.title(L.t("pvp_win") if won else L.t("pvp_lose"), 60, UI.GOLD if won else UI.RED))
+	v.add_child(UI.spacer(8))
+	var ids := pvp_scores.keys()
+	ids.sort_custom(func(a, b): return int(pvp_scores[a]) > int(pvp_scores[b]))
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 60)
+	for id in ids:
+		var nm: String = Net.players.get(id, {}).get("name", "?")
+		_row(grid, nm + (" ★" if id == ids[0] else ""), str(pvp_scores[id]) + " " + L.t("kills"))
+	v.add_child(UI.center(grid))
+	v.add_child(UI.spacer(8))
+	var cl := UI.label(L.t("credits_earned") + ": $" + UI.fmt_num(summary.get("credits", 0)), 18, UI.GOLD, "mono")
+	cl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(cl)
+	v.add_child(UI.spacer(10))
+	first_btn = UI.button(L.t("net_back_lobby"), func(): retry.emit(), 320)
+	first_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	v.add_child(first_btn)
+
 func _build_summary(v: VBoxContainer) -> void:
+	if summary.get("pvp", false):
+		_build_pvp(v)
+		return
 	var won: bool = summary.get("victory", false)
 	v.add_child(UI.title(L.t("run_complete") if won else L.t("game_over"), 60, UI.GOLD if won else UI.RED))
 	v.add_child(UI.spacer(6))
@@ -81,9 +108,13 @@ func _build_summary(v: VBoxContainer) -> void:
 	v.add_child(UI.spacer(6))
 	var row := UI.hbox(16)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	first_btn = UI.button(L.t("retry"), func(): retry.emit(), 260)
-	row.add_child(first_btn)
-	row.add_child(UI.button(L.t("main_menu"), func(): to_menu.emit(), 260))
+	if net_mode:
+		first_btn = UI.button(L.t("net_back_lobby"), func(): retry.emit(), 320)
+		row.add_child(first_btn)
+	else:
+		first_btn = UI.button(L.t("retry"), func(): retry.emit(), 260)
+		row.add_child(first_btn)
+		row.add_child(UI.button(L.t("main_menu"), func(): to_menu.emit(), 260))
 	v.add_child(row)
 
 func _row(grid: GridContainer, k: String, val: String) -> void:
@@ -94,5 +125,5 @@ func _row(grid: GridContainer, k: String, val: String) -> void:
 	grid.add_child(b)
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not victory_pending and event is InputEventKey and event.pressed and event.keycode == KEY_R:
+	if not victory_pending and not net_mode and event is InputEventKey and event.pressed and event.keycode == KEY_R:
 		retry.emit()

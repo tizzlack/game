@@ -17,6 +17,7 @@ const CardScreen = preload("res://scripts/ui/card_screen.gd")
 const PauseMenu = preload("res://scripts/ui/pause_menu.gd")
 const GameOver = preload("res://scripts/ui/game_over.gd")
 const Cursor = preload("res://scripts/ui/cursor.gd")
+const RemotePlayer = preload("res://scripts/player/remote_player.gd")
 const ENEMIES := {
 	"walker": preload("res://scripts/enemies/walker.gd"),
 	"brute": preload("res://scripts/enemies/brute.gd"),
@@ -68,6 +69,24 @@ var carve_rng := RandomNumberGenerator.new()
 var zoom_kick := 0.0
 var speed_zoom := 0.0
 const BASE_ZOOM := 1.2
+# --- Multiplayer ---
+const ENEMY_STRIDE := 14
+const STATE_CODES := {"idle": 0, "aim": 1, "fire": 2, "windup": 3, "charge": 4, "walk": 5, "intro": 6,
+	"ring": 7, "volley": 8, "laser": 9, "summon": 10, "rain": 11}
+var versus := false
+var remotes := {}  # peer_id -> RemotePlayer
+var enemies_by_id := {}
+var next_enemy_id := 0
+var net_send_t := 0.0
+var snap_t := 0.0
+var clear_requested := false
+var cards_done := {}
+var pvp_scores := {}
+var pvp_time := 180.0
+var pvp_over := false
+var last_attacker := 0
+var killfeed: Array = []
+const PVP_KILLS := 10
 
 func _ready() -> void:
 	bg_layer = CanvasLayer.new()
@@ -99,6 +118,12 @@ func _ready() -> void:
 	cursor.game = self
 	cursor_layer.add_child(cursor)
 	Save.achievement_unlocked.connect(_on_achievement)
+	if Net.active:
+		Net.game = self
+		versus = Run.net_mode == "versus"
+		if versus:
+			for id in Net.players:
+				pvp_scores[id] = 0
 	start_section()
 
 func _exit_tree() -> void:
@@ -113,6 +138,11 @@ func start_section() -> void:
 		world.remove_child(c)
 		c.queue_free()
 	enemies.clear()
+	enemies_by_id.clear()
+	next_enemy_id = 0
+	remotes.clear()
+	clear_requested = false
+	cards_done.clear()
 	chunks.clear()
 	checkpoints.clear()
 	goal = null
@@ -126,9 +156,13 @@ func start_section() -> void:
 	pal = Data.PALETTES[Run.palette_index()]
 	var gen := LevelGen.new()
 	var is_boss := Run.is_boss()
-	var tutorial := Run.world == 0 and Run.section == 0 and Run.loop == 0 and int(Save.stat("runs")) <= 3
+	var tutorial: bool = Run.world == 0 and Run.section == 0 and Run.loop == 0 and int(Save.stat("runs")) <= 3 and not Net.active
 	var length := 4200.0 + Run.world * 500.0 + Run.section * 350.0 + Run.loop * 600.0
-	level = gen.generate(Run.section_seed(), Run.difficulty(), length, is_boss, tutorial, Run.stats["enemy_count"])
+	if versus:
+		is_boss = false
+		level = gen.generate_versus(Run.section_seed())
+	else:
+		level = gen.generate(Run.section_seed(), Run.difficulty(), length, is_boss, tutorial, Run.stats["enemy_count"])
 	kill_y = level["kill_y"]
 	terrain = Node2D.new()
 	world.add_child(terrain)
@@ -144,8 +178,14 @@ func start_section() -> void:
 	player.game = self
 	player.color = Save.skin_color()
 	player.position = level["start"]
+	if versus:
+		player.position = _pvp_spawn_point()
 	player.died.connect(_on_player_died)
 	world.add_child(player)
+	if Net.active:
+		for id in Net.players:
+			if id != Net.my_id():
+				_add_remote(id)
 	bullets = Bullets.new()
 	bullets.game = self
 	world.add_child(bullets)
@@ -171,7 +211,10 @@ func start_section() -> void:
 		n.text = L.t(h["key"] + ("_pad" if Controls.using_gamepad else ""))
 		n.position = h["pos"]
 		props_node.add_child(n)
-	if is_boss:
+	if versus:
+		Sfx.music("boss")
+		hud.banner(L.t("versus"), L.t("versus_sub") % PVP_KILLS, pal["enemy"])
+	elif is_boss:
 		boss = spawn_enemy("boss", level["boss_pos"])
 		boss.setup_boss(level["arena"], Run.world + Run.loop * 3, pal["accent"])
 		Sfx.music("boss")
@@ -191,6 +234,22 @@ func start_section() -> void:
 	bg.setup(pal, Run.section_seed())
 	Input.mouse_mode = Input.MOUSE_MODE_HIDDEN
 	hud.refresh_section()
+
+func _activate_checkpoint(i: int) -> void:
+	var cp = checkpoints[i]
+	if cp.activated:
+		return
+	cp.activate()
+	last_checkpoint = cp.position + Vector2(0, -40)
+	hud.banner(L.t("checkpoint"), "", pal["accent"], 1.4)
+	Sfx.play("checkpoint")
+	if player.dead:
+		if Net.active and not versus:
+			player.revive(last_checkpoint, 0.4)
+	else:
+		player.heal(player.max_hp() * 0.2 * Run.stats["heal_mult"])
+	Run.add_score(250)
+	fx.ring(cp.position + Vector2(0, -126), pal["accent"], 80.0, 0.6)
 
 func _spawn_goal(pos: Vector2) -> void:
 	goal = Props.new()
@@ -287,9 +346,14 @@ static func _y_on(pts: PackedVector2Array, px: float) -> float:
 	return pts[pts.size() - 1].y
 
 # Stanzt ein Loch ins Gelände und lässt Splitter fliegen
-func carve(pos: Vector2, radius: float, normal: Vector2 = Vector2.UP) -> void:
+func carve(pos: Vector2, radius: float, normal: Vector2 = Vector2.UP, seed_value: int = -1, from_net: bool = false) -> void:
 	if radius <= 0.0:
 		return
+	if seed_value < 0:
+		seed_value = randi()
+	if Net.active and not from_net:
+		Net.carve.rpc(pos, radius, normal, seed_value)
+	carve_rng.seed = seed_value
 	var shape = TerrainChunk.stair_shape(pos, radius, carve_rng)
 	var rect := Rect2(pos - Vector2(radius, radius) * 1.2, Vector2(radius, radius) * 2.4)
 	var hit_chunk = null
@@ -300,10 +364,16 @@ func carve(pos: Vector2, radius: float, normal: Vector2 = Vector2.UP) -> void:
 		var col: Color = hit_chunk.edge_color(Vector2.ZERO, Vector2(1, 0) if absf(normal.y) > 0.5 else Vector2(0, 1))
 		fx.chips(pos, col, int(clampf(radius * 0.8, 4.0, 24.0)), normal)
 
-func spawn_enemy(kind: String, pos: Vector2):
+func spawn_enemy(kind: String, pos: Vector2, broadcast: bool = false, forced_id: int = -1):
 	if not ENEMIES.has(kind):
 		return null
 	var e = ENEMIES[kind].new()
+	e.net_id = forced_id if forced_id >= 0 else next_enemy_id
+	next_enemy_id = maxi(next_enemy_id, e.net_id + 1)
+	e.puppet = Net.active and not Net.is_host
+	enemies_by_id[e.net_id] = e
+	if broadcast and Net.active and Net.is_host:
+		Net.e_spawn.rpc(kind, pos, e.net_id)
 	var c: Color = pal["enemy"]
 	if kind == "sniper":
 		c = Color(0.9, 0.4, 1.0)
@@ -328,20 +398,26 @@ func _physics_process(delta: float) -> void:
 		combo_t -= delta
 		if combo_t <= 0.0:
 			Run.combo = 0
+	if Net.active:
+		_net_tick(delta)
 	if player.dead:
 		return
 	var pp: Vector2 = player.global_position
-	for cp in checkpoints:
+	for i in checkpoints.size():
+		var cp = checkpoints[i]
 		if not cp.activated and pp.x >= cp.position.x - 10.0:
-			cp.activate()
-			last_checkpoint = cp.position + Vector2(0, -40)
-			hud.banner(L.t("checkpoint"), "", pal["accent"], 1.4)
-			Sfx.play("checkpoint")
-			player.heal(player.max_hp() * 0.2 * Run.stats["heal_mult"])
-			Run.add_score(250)
-			fx.ring(cp.position + Vector2(0, -126), pal["accent"], 80.0, 0.6)
+			_activate_checkpoint(i)
+			if Net.active:
+				Net.cp_reached.rpc(i)
 	if goal and state in ["play", "boss_dead"] and absf(pp.x - goal.position.x) < 40.0 and pp.y > goal.position.y - 220.0:
-		_section_clear()
+		if not Net.active:
+			_section_clear()
+		elif not clear_requested:
+			clear_requested = true
+			if Net.is_host:
+				Net.sec_clear.rpc()
+			else:
+				Net.req_clear.rpc_id(1)
 	if pp.y > kill_y and state == "play":
 		player.respawn_safe(15.0 * (1.0 + 0.1 * Run.difficulty()))
 	if is_instance_valid(boss) and not boss.dead:
@@ -353,7 +429,15 @@ func _process(delta: float) -> void:
 		return
 	var rdelta := delta / maxf(Engine.time_scale, 0.001)
 	trauma = maxf(0.0, trauma - rdelta * 1.6)
-	if not player.dead:
+	var follow = player
+	if player.dead and Net.active:
+		for r in remotes.values():
+			if is_instance_valid(r) and not r.dead and r.has_state:
+				follow = r
+				break
+	if follow != player:
+		cam_pos = cam_pos.lerp(follow.global_position + Vector2(0, -55), clampf(5.0 * rdelta, 0.0, 1.0))
+	elif not player.dead:
 		var look := Vector2(player.aim.x * 110.0, -55.0 + player.aim.y * 50.0) + Vector2(player.velocity.x * 0.22, player.velocity.y * 0.06)
 		var target: Vector2 = player.global_position + look
 		if is_instance_valid(boss) and not boss.dead:
@@ -443,6 +527,12 @@ func explode(pos: Vector2, radius: float, dmg: float) -> void:
 		var d: float = e.global_position.distance_to(pos)
 		var k := 1.0 - 0.5 * clampf(d / radius, 0.0, 1.0)
 		e.take_damage(dmg * k, (e.global_position - pos).normalized(), false)
+	if versus:
+		for r in remotes.values():
+			if is_instance_valid(r) and not r.dead and r.global_position.distance_to(pos) < radius + 14.0:
+				Net.pvp_hit.rpc_id(r.peer_id, dmg * 0.7, pos)
+	if Net.active:
+		Net.fx_explosion.rpc(pos, radius)
 	fx.explosion(pos, Color(1.0, 0.6, 0.25), radius / 90.0)
 	carve(pos, radius * 0.42)
 	shake(0.25)
@@ -475,7 +565,27 @@ func chain_lightning(from_enemy, dmg: float) -> void:
 		Sfx.play("lightning", -6.0)
 
 # --- Ereignisse ---
-func on_enemy_killed(e, reward: bool) -> void:
+# Nächstes lebendes Ziel für Gegner (eigener Spieler oder Mitspieler)
+func target_for(pos: Vector2):
+	var best = player
+	var bd := INF
+	if player and not player.dead:
+		bd = player.global_position.distance_squared_to(pos)
+	for r in remotes.values():
+		if is_instance_valid(r) and r.has_state and not r.dead:
+			var d: float = r.global_position.distance_squared_to(pos)
+			if d < bd:
+				bd = d
+				best = r
+	return best
+
+func on_enemy_killed(e, reward: bool, killer: int = -1) -> void:
+	if killer < 0:
+		killer = e.last_hitter if Net.active else 1
+	if Net.active and Net.is_host:
+		Net.e_died.rpc(e.net_id, killer, reward)
+	enemies_by_id.erase(e.net_id)
+	var mine := killer == Net.my_id() or not Net.active
 	var pos: Vector2 = e.global_position
 	var big: bool = e.kind in ["brute", "turret"]
 	fx.death_burst(pos, e.col, 1.4 if big else 1.0)
@@ -488,11 +598,13 @@ func on_enemy_killed(e, reward: bool) -> void:
 		return
 	if not reward:
 		return
+	pickups.drop_coins(pos, e.credit_value)
+	if not mine:
+		return
 	var v := Run.add_kill(e.score_value)
 	if player and not player.dead:
 		player.on_kill()
 	fx.text(pos + Vector2(0, -30), "+%d" % v, Color(1, 1, 1, 0.9), 18.0, 0.9)
-	pickups.drop_coins(pos, e.credit_value)
 	if randf() < 0.07 and Run.stats["heal_mult"] > 0.0:
 		pickups.drop_heal(pos)
 	if Run.stats["lifesteal"] > 0.0:
@@ -567,6 +679,14 @@ func _on_card_chosen(id: String) -> void:
 	Run.apply_card(id)
 	Sfx.play("card")
 	_close_overlay()
+	if Net.active:
+		# auf die anderen warten, der Host startet dann für alle den nächsten Abschnitt
+		hud.banner(L.t("net_waiting"), "", pal["accent"], 30.0)
+		if Net.is_host:
+			net_card_done(1)
+		else:
+			Net.card_done.rpc_id(1)
+		return
 	var victory := Run.advance()
 	if victory:
 		_show_victory()
@@ -595,6 +715,12 @@ func _on_player_died() -> void:
 	Sfx.play("big_explosion")
 	shake(1.0)
 	Run.combo = 0
+	if versus:
+		Net.pvp_death.rpc(last_attacker)
+		await get_tree().create_timer(2.0).timeout
+		if is_inside_tree() and not pvp_over:
+			player.revive(_pvp_spawn_point(), 1.0)
+		return
 	if Run.revives_left > 0:
 		Run.revives_left -= 1
 		set_slowmo(0.35)
@@ -606,6 +732,11 @@ func _on_player_died() -> void:
 		player.revive(at, 0.5)
 		cam_pos = at
 		hud.banner(L.t("second_chance"), "", pal["accent"], 1.5)
+		return
+	if Net.active:
+		# Koop: zuschauen, bis ein Mitspieler den nächsten Checkpoint erreicht
+		hud.banner(L.t("net_spectate"), "", pal["accent"], 3.0)
+		Run.hp = Run.stats["max_hp"] * 0.5
 		return
 	state = "dead"
 	set_slowmo(0.3)
@@ -622,9 +753,20 @@ func _end_run(victory: bool) -> void:
 	Sfx.play("clear" if victory else "game_over")
 	var go = GameOver.new()
 	go.summary = summary
-	go.retry.connect(func(): restart_run.emit())
-	go.to_menu.connect(func(): quit_to_menu.emit())
+	if Net.active:
+		go.net_mode = true
+		go.retry.connect(func(): back_to_lobby())
+		go.to_menu.connect(func(): back_to_lobby())
+	else:
+		go.retry.connect(func(): restart_run.emit())
+		go.to_menu.connect(func(): quit_to_menu.emit())
 	_show_overlay(go)
+
+signal to_lobby
+
+func back_to_lobby() -> void:
+	Net.back_to_lobby()
+	to_lobby.emit()
 
 func give_up() -> void:
 	_close_overlay()
@@ -637,6 +779,8 @@ func open_pause() -> void:
 	pm.give_up.connect(give_up)
 	pm.to_menu.connect(func():
 		Run.finish(false)
+		if Net.active:
+			Net.leave()
 		quit_to_menu.emit())
 	_show_overlay(pm)
 	Sfx.play("ui_select")
@@ -646,7 +790,7 @@ func _show_overlay(c: Control) -> void:
 		overlay.queue_free()
 	overlay = c
 	overlay_layer.add_child(c)
-	get_tree().paused = true
+	get_tree().paused = not Net.active  # im Multiplayer läuft das Spiel weiter
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 func _close_overlay() -> void:
@@ -660,3 +804,245 @@ func _close_overlay() -> void:
 func _on_achievement(id: String) -> void:
 	hud.achievement_toast(id)
 	Sfx.play("achievement", -3.0)
+
+# =====================================================================
+# Multiplayer
+# =====================================================================
+func _add_remote(id: int) -> void:
+	if remotes.has(id) or not Net.players.has(id):
+		return
+	var r = RemotePlayer.new()
+	r.setup(self, id, Net.players[id], versus)
+	world.add_child(r)
+	remotes[id] = r
+
+func _pvp_spawn_point() -> Vector2:
+	var pts: Array = level.get("pvp_spawns", [])
+	if pts.is_empty():
+		return level["start"]
+	var best: Vector2 = pts[randi() % pts.size()]
+	var best_d := -1.0
+	for i in 6:
+		var p: Vector2 = pts[randi() % pts.size()]
+		var d := INF
+		for r in remotes.values():
+			if is_instance_valid(r) and not r.dead:
+				d = minf(d, r.global_position.distance_to(p))
+		if d > best_d:
+			best_d = d
+			best = p
+	return best
+
+func _player_flags() -> int:
+	var f := 0
+	if player.is_on_floor():
+		f |= RemotePlayer.F.FLOOR
+	if player.slide_t > 0.0:
+		f |= RemotePlayer.F.SLIDE
+	if player.wall_sliding:
+		f |= RemotePlayer.F.WALL_L if player.wall_dir < 0 else RemotePlayer.F.WALL_R
+	if player.dash_t > 0.0:
+		f |= RemotePlayer.F.DASH
+	if player.slamming:
+		f |= RemotePlayer.F.SLAM
+	if player.dead:
+		f |= RemotePlayer.F.DEAD
+	if player.invuln > 0.0:
+		f |= RemotePlayer.F.INVULN
+	return f
+
+func _net_tick(delta: float) -> void:
+	net_send_t -= delta
+	if net_send_t <= 0.0 and player:
+		net_send_t = 1.0 / 30.0
+		var spin := 0.0
+		if player.spin_t > 0.0:
+			spin = (1.0 - player.spin_t / player.SPIN_TIME) * TAU * player.spin_dir
+		Net.p_state.rpc(PackedFloat32Array([player.global_position.x, player.global_position.y, player.velocity.x, player.velocity.y,
+			player.aim.x, player.aim.y, _player_flags(), spin, player.hp, player.max_hp()]))
+	if not Net.is_host:
+		return
+	# Host: Gegner-Schnappschuss an alle
+	snap_t -= delta
+	if snap_t <= 0.0:
+		snap_t = 1.0 / 20.0
+		var data := PackedFloat32Array()
+		for e in enemies:
+			if not is_instance_valid(e) or e.dead or not e.active:
+				continue
+			data.append_array(e.net_snapshot())
+		if data.size() > 0:
+			Net.e_snap.rpc(data)
+	# Koop: alle tot -> Run vorbei
+	if not versus and state in ["play", "boss_dead"] and player.dead and Run.revives_left <= 0:
+		var any_alive := false
+		for r in remotes.values():
+			if is_instance_valid(r) and (not r.has_state or not r.dead):
+				any_alive = true
+		if not any_alive:
+			state = "over_pending"
+			Net.run_over.rpc(false)
+	# Versus: Zeitlimit
+	if versus and not pvp_over:
+		pvp_time -= delta
+		if pvp_time <= 0.0:
+			pvp_over = true
+			Net.pvp_end.rpc(pvp_scores)
+
+func net_peer_left(id: int) -> void:
+	if remotes.has(id):
+		var r = remotes[id]
+		if is_instance_valid(r):
+			fx.ring(r.global_position, r.color, 60.0, 0.5)
+			r.queue_free()
+		remotes.erase(id)
+	cards_done.erase(id)
+	if Net.is_host and not cards_done.is_empty():
+		net_card_done(-1)
+
+func net_player_state(id: int, data: PackedFloat32Array) -> void:
+	if not remotes.has(id):
+		_add_remote(id)
+	if remotes.has(id):
+		remotes[id].apply_state(data)
+
+func net_remote_shot(id: int, origin: Vector2, vels: PackedVector2Array, weapon_id: String, crit: bool) -> void:
+	if not Data.WEAPONS.has(weapon_id):
+		return
+	var w: Dictionary = Data.WEAPONS[weapon_id]
+	for v in vels:
+		bullets.spawn_visual(origin, v, w, crit)
+	fx.muzzle(origin, vels[0].normalized() if vels.size() > 0 else Vector2.RIGHT, w["color"])
+	Sfx.play_at(w["sfx"], origin, -10.0)
+
+func net_carve(pos: Vector2, radius: float, normal: Vector2, seed_value: int) -> void:
+	carve(pos, radius, normal, seed_value, true)
+
+func net_fx_explosion(pos: Vector2, radius: float) -> void:
+	fx.explosion(pos, Color(1.0, 0.6, 0.25), radius / 90.0)
+	Sfx.play_at("explosion", pos, -4.0)
+	if versus and player and not player.dead and player.global_position.distance_to(pos) < radius:
+		pass  # Schaden kommt per pvp_hit vom Schützen
+
+func net_enemy_snapshot(data: PackedFloat32Array) -> void:
+	var i := 0
+	while i + ENEMY_STRIDE <= data.size():
+		var id := int(data[i])
+		var e = enemies_by_id.get(id)
+		if e and is_instance_valid(e) and not e.dead:
+			e.apply_snapshot(data.slice(i, i + ENEMY_STRIDE))
+		i += ENEMY_STRIDE
+
+func net_spawn_enemy(kind: String, pos: Vector2, id: int) -> void:
+	if not enemies_by_id.has(id):
+		spawn_enemy(kind, pos, false, id)
+
+func net_enemy_died(id: int, killer: int, reward: bool) -> void:
+	var e = enemies_by_id.get(id)
+	if e == null or not is_instance_valid(e) or e.dead:
+		return
+	e.die_remote(killer, reward)
+
+func net_hit_enemy(id: int, dmg: float, dir: Vector2, crit: bool, from_peer: int) -> void:
+	var e = enemies_by_id.get(id)
+	if e and is_instance_valid(e) and not e.dead:
+		e.pending_hitter = from_peer
+		e.take_damage(dmg, dir, crit)
+
+func net_request_clear() -> void:
+	if state in ["play", "boss_dead"]:
+		Net.sec_clear.rpc()
+
+func net_section_clear() -> void:
+	if state == "clear":
+		return
+	clear_requested = true
+	if player.dead:
+		player.revive(goal.position + Vector2(0, -40) if goal else player.global_position, 0.5)
+	_section_clear()
+
+func net_card_done(from_peer: int) -> void:
+	if from_peer <= 0 and from_peer != -1:
+		from_peer = 1
+	if from_peer > 0:
+		cards_done[from_peer] = true
+	for id in Net.players:
+		if not cards_done.has(id):
+			return
+	cards_done.clear()
+	Net.next_sec.rpc()
+
+func net_next_section() -> void:
+	hud.banner_t = 0.0
+	var victory := Run.advance()
+	if victory:
+		_end_run(true)
+		return
+	_next_section()
+
+func net_checkpoint(index: int) -> void:
+	if index >= 0 and index < checkpoints.size():
+		_activate_checkpoint(index)
+
+func net_run_over(victory: bool) -> void:
+	if state == "over":
+		return
+	state = "dead"
+	Sfx.stop_music(1.0)
+	await get_tree().create_timer(1.2).timeout
+	if is_inside_tree():
+		_end_run(victory)
+
+func net_pvp_hit(dmg: float, from_pos: Vector2, shooter: int) -> void:
+	if player == null or player.dead or pvp_over:
+		return
+	last_attacker = shooter
+	player.take_damage(dmg, from_pos)
+
+func net_pvp_death(victim: int, killer: int) -> void:
+	if victim <= 0:
+		victim = Net.my_id()
+	var vn: String = Net.players.get(victim, {}).get("name", "?")
+	var kn: String = Net.players.get(killer, {}).get("name", "?")
+	killfeed.append({"text": ("%s  >  %s" % [kn, vn]) if killer > 0 and killer != victim else vn, "t": 4.0})
+	if killer == Net.my_id() and killer != victim:
+		Run.add_kill(100)
+		Sfx.play("combo", -2.0)
+	if Net.is_host and not pvp_over:
+		if killer > 0 and killer != victim:
+			pvp_scores[killer] = int(pvp_scores.get(killer, 0)) + 1
+		Net.pvp_scores.rpc(pvp_scores, pvp_time)
+		for id in pvp_scores:
+			if int(pvp_scores[id]) >= PVP_KILLS:
+				pvp_over = true
+				Net.pvp_end.rpc(pvp_scores)
+				break
+
+func net_pvp_scores(scores: Dictionary, time_left: float) -> void:
+	pvp_scores = scores
+	pvp_time = time_left
+
+func net_pvp_end(scores: Dictionary) -> void:
+	pvp_scores = scores
+	pvp_over = true
+	state = "over"
+	player.frozen = true
+	var my_kills := int(scores.get(Net.my_id(), 0))
+	var best_id := -1
+	var best := -1
+	for id in scores:
+		if int(scores[id]) > best:
+			best = int(scores[id])
+			best_id = id
+	var won := best_id == Net.my_id()
+	var earned := my_kills * 20 + (100 if won else 25)
+	Save.add_bank(earned)
+	Save.save_data()
+	Sfx.play("clear" if won else "game_over")
+	var go = GameOver.new()
+	go.net_mode = true
+	go.pvp_scores = scores
+	go.summary = {"victory": won, "pvp": true, "credits": earned}
+	go.retry.connect(func(): back_to_lobby())
+	go.to_menu.connect(func(): back_to_lobby())
+	_show_overlay(go)

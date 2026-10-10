@@ -24,6 +24,7 @@ Controls="*res://scripts/autoload/controls.gd"
 Sfx="*res://scripts/autoload/audio.gd"
 SteamService="*res://scripts/autoload/steam_service.gd"
 Run="*res://scripts/autoload/run.gd"
+Net="*res://scripts/autoload/net.gd"
 
 [display]
 

@@ -29,6 +29,14 @@ var shape_size := Vector2(22, 54)
 var is_boss := false
 var knock_resist := 0.0
 var last_pose: Dictionary = {}
+# Multiplayer
+var net_id := -1
+var puppet := false  # Client: folgt nur den Schnappschüssen des Hosts
+var last_hitter := 1
+var pending_hitter := 0
+var snap_pos := Vector2.ZERO
+var snap_floor := false
+var has_snap := false
 
 func setup(g, difficulty: float, color: Color) -> void:
 	game = g
@@ -40,6 +48,9 @@ func setup(g, difficulty: float, color: Color) -> void:
 	contact_dmg *= 1.0 + 0.12 * diff
 	shot_dmg *= 1.0 + 0.12 * diff
 	speed *= Run.stats["enemy_speed"]
+	if Net.active and not Run.net_mode == "versus":
+		max_hp *= 1.0 + 0.55 * (Net.player_count() - 1)
+		hp = max_hp
 	credit_value = int(round(credit_value * (1.0 + 0.15 * diff)))
 
 func _init_stats() -> void:
@@ -65,10 +76,16 @@ func _ready() -> void:
 	z_index = 11
 	cd = randf_range(0.6, 1.6)
 
+func grounded() -> bool:
+	return snap_floor if puppet else is_on_floor()
+
 func _physics_process(delta: float) -> void:
 	if dead or game == null:
 		return
-	var p = game.player
+	if puppet:
+		_puppet_step(delta)
+		return
+	var p = game.target_for(global_position)
 	if not active:
 		if p and global_position.distance_to(p.global_position) < activate_dist:
 			active = true
@@ -114,6 +131,15 @@ func ground_ahead(dir: float) -> bool:
 func take_damage(amount: float, dir: Vector2 = Vector2.ZERO, crit: bool = false) -> void:
 	if dead:
 		return
+	if puppet:
+		# Client: Treffer sofort zeigen, Schaden rechnet der Host
+		flash = 0.06
+		game.fx.number(global_position + Vector2(randf_range(-8, 8), -shape_size.y * 0.5), amount, crit)
+		Sfx.play_at("crit" if crit else "hit", global_position, -8.0)
+		Net.hit_enemy.rpc_id(1, net_id, amount, dir, crit)
+		return
+	last_hitter = pending_hitter if pending_hitter > 0 else Net.my_id()
+	pending_hitter = 0
 	hp -= amount
 	flash = 0.06
 	if dir != Vector2.ZERO and knock_resist < 1.0:
@@ -127,7 +153,7 @@ func take_damage(amount: float, dir: Vector2 = Vector2.ZERO, crit: bool = false)
 		die(true)
 
 func die(reward: bool) -> void:
-	if dead:
+	if dead or puppet:
 		return
 	dead = true
 	if not last_pose.is_empty():
@@ -152,6 +178,78 @@ func draw_color() -> Color:
 	if flash > 0.0:
 		return col.lerp(Color(1.4, 1.4, 1.4), 0.55)
 	return col
+
+# --- Multiplayer: Schnappschüsse ---
+func net_snapshot() -> PackedFloat32Array:
+	var sc := 0
+	var st_v = get("state")
+	if st_v != null:
+		sc = int(game.STATE_CODES.get(st_v, 0))
+	var stt = get("state_t")
+	var ex := _snap_extra()
+	return PackedFloat32Array([net_id, global_position.x, global_position.y, velocity.x, velocity.y, facing, aim.x, aim.y,
+		sc, float(stt) if stt != null else 0.0, 1.0 if is_on_floor() else 0.0, hp / max_hp, ex.x, ex.y])
+
+func _snap_extra() -> Vector2:
+	return Vector2.ZERO
+
+func apply_snapshot(d: PackedFloat32Array) -> void:
+	snap_pos = Vector2(d[1], d[2])
+	velocity = Vector2(d[3], d[4])
+	facing = d[5]
+	aim = Vector2(d[6], d[7])
+	if get("state") != null:
+		for k in game.STATE_CODES:
+			if game.STATE_CODES[k] == int(d[8]):
+				set("state", k)
+				break
+	if get("state_t") != null:
+		set("state_t", d[9])
+	if get("target_pos") != null:
+		set("target_pos", global_position + aim * 300.0)
+	snap_floor = d[10] > 0.5
+	hp = d[11] * max_hp
+	_apply_extra(Vector2(d[12], d[13]))
+	if not has_snap:
+		global_position = snap_pos
+		has_snap = true
+	if not active:
+		active = true
+
+func _apply_extra(_ex: Vector2) -> void:
+	pass
+
+func _puppet_step(delta: float) -> void:
+	if not active:
+		return
+	flash = maxf(0.0, flash - delta)
+	snap_pos += velocity * delta
+	global_position = global_position.lerp(snap_pos, clampf(14.0 * delta, 0.0, 1.0))
+	if global_position.distance_to(snap_pos) > 200.0:
+		global_position = snap_pos
+	phase += absf(velocity.x) * delta * 0.05
+	if get("t") != null:
+		set("t", float(get("t")) + delta)
+	var p = game.player
+	if contact_dmg > 0.0 and p and not p.dead:
+		var d: Vector2 = p.global_position - global_position
+		if absf(d.x) < radius + 10.0 and absf(d.y) < shape_size.y * 0.5 + 24.0:
+			p.take_damage(contact_dmg, global_position)
+	_puppet_extra(delta)
+	queue_redraw()
+
+func _puppet_extra(_delta: float) -> void:
+	pass
+
+# Vom Host gemeldeter Tod
+func die_remote(killer: int, reward: bool) -> void:
+	if dead:
+		return
+	dead = true
+	if not last_pose.is_empty():
+		game.fx.shatter(Figure.to_global(last_pose, global_transform), col, global_position + Vector2(0, 10))
+	game.on_enemy_killed(self, reward, killer)
+	queue_free()
 
 # Leuchtendes Visier im Kopf, zeigt die Blickrichtung
 func draw_visor(p: Dictionary, dir: Vector2, c: Color) -> void:

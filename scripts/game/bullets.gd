@@ -6,6 +6,7 @@ const Neon = preload("res://scripts/core/neon.gd")
 const MASK_WORLD := 1
 const MASK_PLAYER := 2
 const MASK_ENEMY := 4
+const MASK_REMOTE := 16
 
 class B:
 	var pos := Vector2.ZERO
@@ -25,6 +26,7 @@ class B:
 	var exclude: Array[RID] = []
 	var rail := false
 	var carve := 0.0
+	var visual := false  # Schuss eines Mitspielers: nur Optik
 
 var game
 var list: Array[B] = []
@@ -56,7 +58,26 @@ func spawn_player(pos: Vector2, vel: Vector2, w: Dictionary, crit: bool) -> void
 	b.carve = w.get("carve", 6.0)
 	list.append(b)
 
-func spawn_enemy(pos: Vector2, vel: Vector2, dmg: float, col: Color, size: float = 1.0) -> void:
+# Schuss eines Mitspielers (nur Optik, kein Schaden, kein Loch)
+func spawn_visual(pos: Vector2, vel: Vector2, w: Dictionary, crit: bool) -> void:
+	var b := B.new()
+	b.pos = pos
+	b.vel = vel
+	b.life = w["life"]
+	b.friendly = true
+	b.visual = true
+	b.col = Color(1.0, 0.9, 0.5) if crit else w["color"]
+	b.width = w["width"]
+	b.length = w["length"]
+	b.rail = w["pierce"] >= 4
+	list.append(b)
+
+func spawn_enemy(pos: Vector2, vel: Vector2, dmg: float, col: Color, size: float = 1.0, from_net: bool = false) -> void:
+	if Net.active and Net.is_host and not from_net:
+		Net.e_bullet.rpc(pos, vel, dmg, col, size)
+	if from_net:
+		game.fx.muzzle(pos, vel.normalized(), col)
+		Sfx.play_at("enemy_shoot", pos, -6.0)
 	var b := B.new()
 	b.pos = pos
 	b.vel = vel
@@ -105,6 +126,10 @@ func _step(b: B, delta: float, space: PhysicsDirectSpaceState2D, player) -> bool
 			b.vel = b.vel.lerp(want, clampf(4.0 * delta, 0.0, 1.0)).normalized() * b.vel.length()
 	var to := b.pos + b.vel * delta
 	var mask := MASK_WORLD | (MASK_ENEMY if b.friendly else MASK_PLAYER)
+	if b.friendly and game.versus and not b.visual:
+		mask |= MASK_REMOTE
+	if b.visual:
+		mask = MASK_WORLD | MASK_ENEMY
 	var q := PhysicsRayQueryParameters2D.create(b.pos, to, mask, b.exclude)
 	q.hit_from_inside = true
 	if not b.friendly and player.is_dodging():
@@ -119,6 +144,19 @@ func _step(b: B, delta: float, space: PhysicsDirectSpaceState2D, player) -> bool
 	var collider = res["collider"]
 	if b.rail:
 		game.fx.trace(b.pos, hit_pos, b.col, b.width * 0.8, 0.22)
+	if b.visual:
+		game.fx.wall_hit(hit_pos, b.col, -b.vel.normalized())
+		return false
+	if b.friendly and collider and collider.has_method("apply_state"):
+		# Versus: Treffer auf einen Mitspieler -> der Getroffene rechnet den Schaden selbst
+		if not collider.is_dodging():
+			Net.pvp_hit.rpc_id(collider.peer_id, b.dmg, b.pos)
+			game.fx.hit(hit_pos, b.col, b.vel.normalized())
+			game.fx.number(hit_pos, b.dmg, b.crit)
+			Sfx.play("hit", -6.0)
+			return false
+		b.exclude.append(res["rid"])
+		return true
 	if b.friendly and collider and collider.is_in_group("enemies"):
 		var dir := b.vel.normalized()
 		collider.take_damage(b.dmg, dir, b.crit)

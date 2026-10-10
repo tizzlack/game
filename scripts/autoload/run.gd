@@ -14,6 +14,7 @@ var section := 0
 var loop := 0
 var heat := 0
 var daily := false
+var net_mode := ""  # "" | coop | versus
 var endless := false
 var weapon_id := "blaster"
 var mutators: Array = []
@@ -40,6 +41,7 @@ var new_achievements: Array = []
 func start(opts: Dictionary) -> void:
 	active = true
 	daily = opts.get("daily", false)
+	net_mode = opts.get("net", "")
 	heat = opts.get("heat", 0)
 	weapon_id = opts.get("weapon", "blaster")
 	mutators = opts.get("mutators", []).duplicate()

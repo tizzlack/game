@@ -49,7 +49,7 @@ func _ai(delta: float, p) -> void:
 					cd = randf_range(1.3, 2.0)
 
 func _draw() -> void:
-	var p := Figure.pose(phase, absf(velocity.x) / 120.0, signf(velocity.x) if absf(velocity.x) > 10.0 else facing, is_on_floor(), aim, 14.0, velocity.y)
+	var p := Figure.pose(phase, absf(velocity.x) / 120.0, signf(velocity.x) if absf(velocity.x) > 10.0 else facing, grounded(), aim, 14.0, velocity.y)
 	Figure.draw(self, p, draw_color(), 2.2, 1.0)
 	last_pose = p
 	draw_visor(p, aim, Color(1.0, 0.85, 0.9))

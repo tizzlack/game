@@ -104,6 +104,36 @@ func _pixel_text(pos: Vector2, s: String, px: float, c: Color, align_right: bool
 					draw_rect(r, Neon.hdr(c, 1.1))
 		x += adv
 
+func _draw_net(vs: Vector2) -> void:
+	if game.versus:
+		var ids: Array = game.pvp_scores.keys()
+		ids.sort_custom(func(a, b): return int(game.pvp_scores[a]) > int(game.pvp_scores[b]))
+		var y := 26.0
+		_glow_text(Vector2(vs.x * 0.5, y), "%d:%02d" % [int(game.pvp_time) / 60, int(game.pvp_time) % 60], f_mono, 20, Color(1, 1, 1, 0.9), HORIZONTAL_ALIGNMENT_CENTER)
+		y += 24.0
+		for id in ids:
+			var nm: String = Net.players.get(id, {}).get("name", "?")
+			var c := Color(1.0, 0.85, 0.4) if id == Net.my_id() else Color(1, 1, 1, 0.75)
+			_glow_text(Vector2(vs.x * 0.5, y), "%s   %d" % [nm, int(game.pvp_scores[id])], f_mono, 14, c, HORIZONTAL_ALIGNMENT_CENTER)
+			y += 18.0
+	else:
+		# Koop: Mitspieler mit Lebensbalken oben links unter den Punkten
+		var y := 118.0
+		for r in game.remotes.values():
+			if not is_instance_valid(r):
+				continue
+			var ratio: float = 0.0 if r.dead else clampf(r.hp / r.max_hp_v, 0.0, 1.0)
+			_glow_text(Vector2(28, y), r.display_name, f_mono, 12, Neon.fade(r.color, 0.85))
+			_glow_bar(Vector2(28, y + 5), 90.0, 3.0, ratio, r.color, r.dead)
+			y += 24.0
+	var ky := vs.y * 0.3
+	for k in game.killfeed:
+		k["t"] -= get_process_delta_time()
+		var a := clampf(k["t"], 0.0, 1.0)
+		_glow_text(Vector2(vs.x - 22, ky), k["text"], f_mono, 14, Neon.fade(Color(1.0, 0.5, 0.55), a), HORIZONTAL_ALIGNMENT_RIGHT)
+		ky += 20.0
+	game.killfeed = game.killfeed.filter(func(k): return k["t"] > 0.0)
+
 # Kleiner Leucht-Balken
 func _glow_bar(pos: Vector2, w: float, h: float, ratio: float, c: Color, dim: bool = false) -> void:
 	var r := Rect2(pos, Vector2(w, h))
@@ -148,6 +178,9 @@ func _draw() -> void:
 	for i in Run.revives_left:
 		Neon.dot(self, Vector2(ix + 3, base.y + 3), 2.6, Color(1.0, 0.45, 0.65), 0.8)
 		ix += 12.0
+	# Multiplayer: Mitspieler, Versus-Punkte, Killfeed
+	if Net.active:
+		_draw_net(vs)
 	# Bossleiste
 	var b = game.boss
 	if is_instance_valid(b) and not b.dead and b.state != "intro":

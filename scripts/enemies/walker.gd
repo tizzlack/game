@@ -29,7 +29,7 @@ func _ai(delta: float, p) -> void:
 	phase += absf(velocity.x) * delta * 0.05
 
 func _draw() -> void:
-	var p := Figure.pose(phase, absf(velocity.x) / 180.0, facing, is_on_floor(), Vector2(facing, 0), 0.0, velocity.y)
+	var p := Figure.pose(phase, absf(velocity.x) / 180.0, facing, grounded(), Vector2(facing, 0), 0.0, velocity.y)
 	Figure.draw(self, p, draw_color(), 2.2, 1.0)
 	last_pose = p
 	draw_visor(p, Vector2(facing, 0), Color(1.0, 0.85, 0.9))

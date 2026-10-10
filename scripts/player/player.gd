@@ -505,6 +505,8 @@ func _shoot() -> void:
 	var origin := gun_tip()
 	var spread: float = weapon["spread"]
 	var speed: float = weapon["speed"] * s["speed_mult"]
+	var net_vels := PackedVector2Array()
+	var any_crit := false
 	for i in count:
 		var ang := aim.angle()
 		if base_count == 1 and count > 1:
@@ -512,7 +514,12 @@ func _shoot() -> void:
 		else:
 			ang += deg_to_rad(randf_range(-spread, spread))
 		var crit: bool = randf() < s["crit"]
-		game.bullets.spawn_player(origin, Vector2.from_angle(ang) * speed * randf_range(0.94, 1.06), weapon, crit)
+		var v := Vector2.from_angle(ang) * speed * randf_range(0.94, 1.06)
+		game.bullets.spawn_player(origin, v, weapon, crit)
+		net_vels.append(v)
+		any_crit = any_crit or crit
+	if Net.active:
+		Net.p_shot.rpc(origin, net_vels, Run.weapon_id, any_crit)
 	game.fx.muzzle(origin, aim, weapon["color"])
 	Sfx.play(weapon["sfx"], -7.0)
 	recoil = 1.0

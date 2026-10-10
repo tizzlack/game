@@ -123,11 +123,12 @@ func _ai(delta: float, p) -> void:
 				var k := 1.0 - state_t / (1.4 / spd)
 				laser_angle = lerp_angle(laser_from, laser_to, k)
 				var dir := Vector2.from_angle(laser_angle)
-				var rel: Vector2 = p.global_position - global_position
+				var lp = game.player
+				var rel: Vector2 = (lp.global_position if lp else p.global_position) - global_position
 				var along := rel.dot(dir)
 				var dist := absf(rel.cross(dir))
-				if along > 0.0 and dist < 22.0:
-					p.take_damage(shot_dmg * 1.6, global_position)
+				if lp and not lp.dead and along > 0.0 and dist < 22.0:
+					lp.take_damage(shot_dmg * 1.6, global_position)
 				if randf() < 0.6:
 					game.fx.sparks(global_position + dir * minf(along, 900.0), col, 1, 200.0)
 				if state_t <= 0.0:
@@ -136,7 +137,7 @@ func _ai(delta: float, p) -> void:
 		"summon":
 			if sub_t <= 0.0:
 				if game.count_kind("drone") < 4:
-					game.spawn_enemy("drone", global_position + Vector2(randf_range(-60, 60), 40))
+					game.spawn_enemy("drone", global_position + Vector2(randf_range(-60, 60), 40), true)
 				sub_n -= 1
 				sub_t = 0.4
 				if sub_n <= 0:
@@ -176,6 +177,27 @@ func _start_pattern() -> void:
 			Sfx.play("charge", -2.0, 0.7)
 		"summon": sub_n = 2 + world_i
 		"rain": sub_n = 16 + (8 if phase2 else 0)
+
+func _snap_extra() -> Vector2:
+	var f := (1 if laser_tele else 0) | (2 if laser_on else 0) | (4 if phase2 else 0)
+	return Vector2(laser_angle, f)
+
+func _apply_extra(ex: Vector2) -> void:
+	laser_angle = ex.x
+	var f := int(ex.y)
+	laser_tele = f & 1 != 0
+	laser_on = f & 2 != 0
+	if f & 4 != 0 and not phase2:
+		phase2 = true
+		game.boss_phase2()
+
+func _puppet_extra(delta: float) -> void:
+	fight_time += delta
+	if laser_on and game.player and not game.player.dead:
+		var dir := Vector2.from_angle(laser_angle)
+		var rel: Vector2 = game.player.global_position - global_position
+		if rel.dot(dir) > 0.0 and absf(rel.cross(dir)) < 22.0:
+			game.player.take_damage(shot_dmg * 1.6, global_position)
 
 func take_damage(amount: float, dir: Vector2 = Vector2.ZERO, crit: bool = false) -> void:
 	if state == "intro":

@@ -41,15 +41,79 @@ func _update_bounds() -> void:
 
 func _rebuild_collision() -> void:
 	for c in get_children():
-		if c is CollisionPolygon2D:
+		if c is CollisionPolygon2D or c is CollisionShape2D:
 			remove_child(c)
 			c.queue_free()
+	for i in polys.size():
+		polys[i] = _clean(polys[i])
 	for p in polys:
 		if p.size() < 3:
 			continue
-		var cp := CollisionPolygon2D.new()
-		cp.polygon = p
-		add_child(cp)
+		for part in _convex_parts(p):
+			if part.size() < 3:
+				continue
+			var cs := CollisionShape2D.new()
+			var sh := ConvexPolygonShape2D.new()
+			sh.set_point_cloud(part)
+			cs.shape = sh
+			add_child(cs)
+
+# Zerlegt ein Polygon stabil in konvexe Teile: triangulieren, dann benachbarte Dreiecke gierig zusammenfügen
+static func _convex_parts(p: PackedVector2Array) -> Array:
+	var tri := Geometry2D.triangulate_polygon(p)
+	var parts: Array = []
+	for k in range(0, tri.size(), 3):
+		var t := PackedVector2Array([p[tri[k]], p[tri[k + 1]], p[tri[k + 2]]])
+		if absf(_area(t)) < 0.01:
+			continue
+		var merged := false
+		for i in parts.size():
+			var m := Geometry2D.merge_polygons(parts[i], t)
+			if m.size() == 1 and _is_convex(m[0]):
+				parts[i] = m[0]
+				merged = true
+				break
+		if not merged:
+			parts.append(t)
+	return parts
+
+static func _is_convex(p: PackedVector2Array) -> bool:
+	if p.size() < 3 or p.size() > 12:
+		return false
+	var sign := 0.0
+	for i in p.size():
+		var a := p[i]
+		var b := p[(i + 1) % p.size()]
+		var c := p[(i + 2) % p.size()]
+		var cr := (b - a).cross(c - b)
+		if absf(cr) < 0.001:
+			continue
+		if sign == 0.0:
+			sign = signf(cr)
+		elif signf(cr) != sign:
+			return false
+	return true
+
+# Entfernt doppelte und fast gerade Zwischenpunkte, damit die Zerlegung stabil bleibt
+static func _clean(p: PackedVector2Array) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for v in p:
+		if out.is_empty() or out[out.size() - 1].distance_to(v) > 0.6:
+			out.append(v)
+	if out.size() > 1 and out[0].distance_to(out[out.size() - 1]) <= 0.6:
+		out.remove_at(out.size() - 1)
+	var changed := true
+	while changed and out.size() > 3:
+		changed = false
+		for i in out.size():
+			var a := out[(i - 1 + out.size()) % out.size()]
+			var b := out[i]
+			var c := out[(i + 1) % out.size()]
+			if absf((b - a).cross(c - b)) < 0.05:
+				out.remove_at(i)
+				changed = true
+				break
+	return out
 
 # Treppenförmige "Pixel"-Form für ein Loch
 static func stair_shape(center: Vector2, r: float, rng: RandomNumberGenerator) -> PackedVector2Array:
@@ -62,13 +126,21 @@ static func stair_shape(center: Vector2, r: float, rng: RandomNumberGenerator) -
 		var p := center + Vector2(cos(a), sin(a)) * rr
 		p = Vector2(round(p.x / grid) * grid, round(p.y / grid) * grid)
 		pts.append(p)
+	# Treppen-Ecken nur einfügen, wenn die Form dabei sternförmig (und damit überschneidungsfrei) bleibt
 	var out := PackedVector2Array()
 	for i in pts.size():
 		var a: Vector2 = pts[i]
 		var b: Vector2 = pts[(i + 1) % pts.size()]
+		if out.size() > 0 and out[out.size() - 1].distance_to(a) < 0.5:
+			continue
 		out.append(a)
 		if absf(a.x - b.x) > 0.1 and absf(a.y - b.y) > 0.1:
-			out.append(Vector2(b.x, a.y) if i % 2 == 0 else Vector2(a.x, b.y))
+			var c := Vector2(b.x, a.y) if i % 2 == 0 else Vector2(a.x, b.y)
+			var aa := (a - center).angle()
+			var ab := wrapf((b - center).angle() - aa, 0.0, TAU)
+			var ac := wrapf((c - center).angle() - aa, 0.0, TAU)
+			if ac > 0.0 and ac < ab and c.distance_to(center) > 1.0:
+				out.append(c)
 	return out
 
 # Stanzt eine Form aus. Gibt true zurück, wenn sich etwas verändert hat.

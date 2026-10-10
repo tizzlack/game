@@ -15,6 +15,9 @@ var bank_label: Label
 var sel_weapon := "blaster"
 var sel_heat := 0
 var sel_mutators: Array = []
+var screen := "home"
+var net_message := ""
+var host_mode := "coop"
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -35,9 +38,22 @@ func _ready() -> void:
 	Sfx.music("menu")
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	Save.bank_changed.connect(_update_bank)
-	show_home()
+	Net.lobby_changed.connect(func():
+		if screen == "mp" and is_inside_tree():
+			show_multiplayer())
+	Net.net_error.connect(func(msg):
+		net_message = msg
+		if screen == "mp" and is_inside_tree():
+			show_multiplayer())
+	if Save.data.has("net_name"):
+		Net.my_name = Save.data["net_name"]
+	if Net.active:
+		show_multiplayer()
+	else:
+		show_home()
 
-func _clear() -> void:
+func _clear(scr: String = "") -> void:
+	screen = scr
 	if content:
 		content.queue_free()
 	content = Control.new()
@@ -75,7 +91,7 @@ func _bank_corner() -> void:
 
 # --- Startseite ---
 func show_home() -> void:
-	_clear()
+	_clear("home")
 	var left := UI.vbox(12)
 	left.set_anchors_preset(Control.PRESET_CENTER_LEFT)
 	left.offset_left = 90
@@ -93,6 +109,7 @@ func show_home() -> void:
 	left.add_child(play)
 	var daily := UI.button(L.t("daily") + _daily_suffix(), _start_daily)
 	left.add_child(daily)
+	left.add_child(UI.button(L.t("multiplayer"), show_multiplayer))
 	left.add_child(UI.button(L.t("workshop"), show_workshop))
 	left.add_child(UI.button(L.t("achievements"), show_achievements))
 	left.add_child(UI.button(L.t("stats"), show_stats))
@@ -128,7 +145,7 @@ func _start_daily() -> void:
 
 # --- Run-Setup ---
 func show_setup() -> void:
-	_clear()
+	_clear("setup")
 	_bank_corner()
 	var p := UI.panel()
 	var v := UI.vbox(14)
@@ -253,7 +270,7 @@ func _start() -> void:
 
 # --- Werkstatt ---
 func show_workshop() -> void:
-	_clear()
+	_clear("workshop")
 	_bank_corner()
 	var p := UI.panel()
 	var v := UI.vbox(10)
@@ -323,7 +340,7 @@ func _shop_row(list: VBoxContainer, title: String, desc: String, level: String, 
 
 # --- Erfolge ---
 func show_achievements() -> void:
-	_clear()
+	_clear("achievements")
 	var p := UI.panel()
 	var v := UI.vbox(10)
 	p.add_child(v)
@@ -356,7 +373,7 @@ func show_achievements() -> void:
 
 # --- Statistik ---
 func show_stats() -> void:
-	_clear()
+	_clear("stats")
 	var p := UI.panel()
 	var v := UI.vbox(10)
 	p.add_child(v)
@@ -391,12 +408,142 @@ func show_stats() -> void:
 	_focus_first(back)
 
 func show_options() -> void:
-	_clear()
+	_clear("options")
 	var o := Options.new()
 	o.closed.connect(show_home)
 	content.add_child(o)
 
+# --- Multiplayer ---
+func show_multiplayer() -> void:
+	_clear("mp")
+	var p := UI.panel()
+	var v := UI.vbox(12)
+	p.add_child(v)
+	if not Net.active:
+		_header(v, L.t("multiplayer"))
+		var name_row := UI.hbox(14)
+		var nl := UI.label(L.t("net_name"), 18, UI.DIM, "mono")
+		nl.custom_minimum_size = Vector2(160, 0)
+		name_row.add_child(nl)
+		var ne := LineEdit.new()
+		ne.text = Net.my_name
+		ne.max_length = 16
+		ne.custom_minimum_size = Vector2(320, 42)
+		ne.text_changed.connect(func(tx):
+			Net.my_name = tx if tx.strip_edges() != "" else "Player"
+			Save.data["net_name"] = Net.my_name)
+		name_row.add_child(ne)
+		v.add_child(name_row)
+		var mode_row := UI.hbox(10)
+		var ml := UI.label(L.t("net_mode"), 18, UI.DIM, "mono")
+		ml.custom_minimum_size = Vector2(160, 0)
+		mode_row.add_child(ml)
+		for m in ["coop", "versus"]:
+			var b := Button.new()
+			b.toggle_mode = true
+			b.button_pressed = host_mode == m
+			b.text = L.t("net_" + m)
+			b.custom_minimum_size = Vector2(200, 44)
+			b.pressed.connect(func():
+				host_mode = m
+				show_multiplayer())
+			mode_row.add_child(b)
+		v.add_child(mode_row)
+		v.add_child(UI.spacer(4))
+		v.add_child(UI.label("STEAM", 16, UI.ACCENT, "mono"))
+		var steam_btn := UI.button(L.t("net_host_steam"), func():
+			Net.mode = host_mode
+			net_message = ""
+			Net.host_steam(), 420)
+		steam_btn.disabled = not Net.steam_available()
+		v.add_child(steam_btn)
+		if not Net.steam_available():
+			v.add_child(UI.label(L.t("net_steam_off"), 13, Color(1, 1, 1, 0.4), "mono"))
+		v.add_child(UI.spacer(4))
+		v.add_child(UI.label("LAN / IP", 16, UI.ACCENT, "mono"))
+		var host_btn := UI.button(L.t("net_host_lan"), func():
+			net_message = ""
+			if Net.host_lan():
+				Net.set_mode(host_mode), 420)
+		v.add_child(host_btn)
+		var join_row := UI.hbox(10)
+		var ip := LineEdit.new()
+		ip.placeholder_text = "127.0.0.1"
+		ip.text = Save.data.get("net_ip", "")
+		ip.custom_minimum_size = Vector2(250, 44)
+		join_row.add_child(ip)
+		join_row.add_child(UI.button(L.t("net_join"), func():
+			net_message = ""
+			Save.data["net_ip"] = ip.text
+			Save.save_data()
+			Net.join_lan(ip.text), 160))
+		v.add_child(join_row)
+		if net_message != "":
+			v.add_child(UI.label(net_message, 15, UI.RED, "mono"))
+		var back := UI.button(L.t("back"), show_home, 220)
+		back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		v.add_child(back)
+		content.add_child(UI.center(p))
+		_focus_first(host_btn if steam_btn.disabled else steam_btn)
+		return
+	# Lobby
+	_header(v, L.t("net_lobby") + "  ·  " + L.t("net_" + Net.mode))
+	if Net.players.is_empty():
+		v.add_child(UI.label(L.t("net_connecting"), 18, UI.DIM, "mono"))
+	for id in Net.players:
+		var info: Dictionary = Net.players[id]
+		var tag := "  [HOST]" if id == 1 else ""
+		var rd: String = L.t("net_ready") if info.get("ready", false) or id == 1 else L.t("net_not_ready")
+		var row := UI.hbox(20)
+		var nm := UI.label(str(info.get("name", "?")) + tag, 20, Color(1.0, 0.85, 0.4) if id == Net.my_id() else Color(0.9, 0.95, 1.0))
+		nm.custom_minimum_size = Vector2(300, 0)
+		row.add_child(nm)
+		row.add_child(UI.label(L.t("weapon_" + str(info.get("weapon", "blaster"))), 16, UI.DIM, "mono"))
+		var rl := UI.label(rd, 16, UI.GREEN if rd == L.t("net_ready") else UI.DIM, "mono")
+		rl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		rl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		row.add_child(rl)
+		row.custom_minimum_size = Vector2(640, 0)
+		v.add_child(row)
+	if Net.is_host and not Net.use_steam:
+		var ips: Array = []
+		for a in IP.get_local_addresses():
+			if a.count(".") == 3 and not a.begins_with("127."):
+				ips.append(a)
+		v.add_child(UI.label(L.t("net_your_ip") + ": " + (", ".join(ips) if ips.size() > 0 else "127.0.0.1") + "  (Port %d)" % Net.PORT, 14, UI.DIM, "mono"))
+	if Net.players.size() < 2:
+		v.add_child(UI.label(L.t("net_need_players"), 15, Color(1, 1, 1, 0.45), "mono"))
+	v.add_child(UI.spacer(6))
+	var brow := UI.hbox(14)
+	brow.alignment = BoxContainer.ALIGNMENT_CENTER
+	var first: Button
+	if Net.is_host:
+		var mode_btn := UI.button(L.t("net_mode") + ": " + L.t("net_" + Net.mode), func():
+			Net.set_mode("versus" if Net.mode == "coop" else "coop"), 260)
+		brow.add_child(mode_btn)
+		var start := UI.button(L.t("start"), func(): Net.start_game(), 200)
+		start.disabled = not Net.all_ready()
+		brow.add_child(start)
+		first = start if not start.disabled else mode_btn
+	else:
+		var me: Dictionary = Net.players.get(Net.my_id(), {})
+		var is_ready: bool = me.get("ready", false)
+		var rb := UI.button(L.t("net_not_ready") if is_ready else L.t("net_ready_btn"), func(): Net.set_ready(not is_ready), 260)
+		brow.add_child(rb)
+		first = rb
+	if Net.use_steam:
+		brow.add_child(UI.button(L.t("net_invite"), func(): Net.invite_friends(), 220))
+	brow.add_child(UI.button(L.t("net_leave"), func():
+		Net.leave()
+		show_multiplayer(), 200))
+	v.add_child(brow)
+	v.add_child(UI.label(L.t("net_hint"), 13, Color(1, 1, 1, 0.4), "mono"))
+	content.add_child(UI.center(p))
+	_focus_first(first)
+
 func _unhandled_input(event: InputEvent) -> void:
+	if screen == "mp" and Net.active:
+		return
 	if event.is_action_pressed("ui_cancel") and content and not content.get_child_count() == 0:
 		# Options-Seite behandelt Abbrechen selbst
 		if content.get_child(0) is Options:
