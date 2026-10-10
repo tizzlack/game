@@ -356,6 +356,9 @@ func _process(delta: float) -> void:
 	if not player.dead:
 		var look := Vector2(player.aim.x * 110.0, -55.0 + player.aim.y * 50.0) + Vector2(player.velocity.x * 0.22, player.velocity.y * 0.06)
 		var target: Vector2 = player.global_position + look
+		if is_instance_valid(boss) and not boss.dead:
+			# Bosskampf: Spieler und Boss gemeinsam im Bild
+			target = target.lerp(boss.global_position, 0.38)
 		cam_pos = cam_pos.lerp(target, clampf(7.0 * rdelta, 0.0, 1.0))
 	var sh := trauma * trauma * shake_scale
 	var t := Time.get_ticks_msec() * 0.001
@@ -366,7 +369,8 @@ func _process(delta: float) -> void:
 	# bei hohem Tempo leicht herauszoomen und weiter vorausschauen
 	var spd := clampf((player.velocity.length() - 300.0) / 700.0, 0.0, 1.0)
 	speed_zoom = lerpf(speed_zoom, spd, clampf(2.5 * rdelta, 0.0, 1.0))
-	camera.zoom = Vector2.ONE * BASE_ZOOM * (1.0 + zoom_kick - speed_zoom * 0.1)
+	var boss_zoom := 0.12 if is_instance_valid(boss) and not boss.dead else 0.0
+	camera.zoom = Vector2.ONE * BASE_ZOOM * (1.0 + zoom_kick - speed_zoom * 0.1 - boss_zoom)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause") and state == "play" and overlay == null:

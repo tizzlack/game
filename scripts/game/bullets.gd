@@ -68,8 +68,11 @@ func spawn_enemy(pos: Vector2, vel: Vector2, dmg: float, col: Color, size: float
 	b.length = 16.0 * size
 	list.append(b)
 
+var clear_gen := 0
+
 func clear() -> void:
 	list.clear()
+	clear_gen += 1
 
 func _physics_process(delta: float) -> void:
 	if game == null or game.player == null:
@@ -77,9 +80,12 @@ func _physics_process(delta: float) -> void:
 	var space := get_world_2d().direct_space_state
 	var player = game.player
 	var i := list.size() - 1
+	var gen := clear_gen
 	while i >= 0:
 		var b := list[i]
 		var alive := _step(b, delta, space, player)
+		if gen != clear_gen:
+			break  # Liste wurde während eines Treffers geleert (z. B. Boss besiegt)
 		if not alive:
 			list[i] = list[list.size() - 1]
 			list.pop_back()

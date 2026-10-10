@@ -20,6 +20,7 @@ var start_world := 0
 var start_section := 0
 var frames := 0
 var slow_frames := 0
+var game_over_seen := false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -102,7 +103,8 @@ func _handle_overlay(g) -> void:
 	elif o.get("victory_pending"):
 		_shot("victory")
 		o.finish_run.emit()
-	elif o.has_signal("retry"):
+	elif o.has_signal("retry") and not game_over_seen:
+		game_over_seen = true
 		_shot("gameover")
 		print("[autotest] game over: ", Run.label(), " score ", Run.score)
 		duration = minf(duration, t + 1.0)
@@ -124,6 +126,8 @@ func _drive(g, p, delta: float) -> void:
 	if g.boss and is_instance_valid(g.boss) and not g.boss.dead:
 		target = g.boss
 		dir = 1.0 if sin(t * 0.7) > 0.0 else -1.0
+	elif g.goal and g.level.get("boss", false):
+		dir = signf(g.goal.position.x - pp.x)
 	if target:
 		p.aim_override = (target.global_position - (pp + Vector2(0, -12))).normalized()
 	else:
