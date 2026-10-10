@@ -1,11 +1,12 @@
-# Sounds und Musik. Alle Dateien werden von tools/gen_audio.py erzeugt.
+# Sounds und Musik. Dateien kommen aus freien Quellen (CC0 / CC BY, siehe CREDITS.md), gebaut mit tools/build_audio.py.
 extends Node
 
 const SFX := ["shoot_blaster", "shoot_scatter", "shoot_pulse", "shoot_rail", "shoot_rocket", "enemy_shoot", "sniper_shot",
 	"hit", "crit", "enemy_die", "explosion", "big_explosion", "jump", "land", "dash", "coin", "heal", "hurt", "shield",
 	"checkpoint", "card", "ui_move", "ui_select", "ui_back", "boss_intro", "clear", "game_over", "lightning", "charge",
 	"laser", "buy", "achievement", "combo"]
-const MUSIC := ["menu", "run", "boss"]
+# Playlists: mehrere Stücke laufen nacheinander, ein einzelnes Stück wird geloopt
+const MUSIC := {"menu": ["menu"], "run": ["run_1", "run_2", "run_3", "run_4"], "boss": ["boss"]}
 const POOL_SIZE := 24
 
 var streams := {}
@@ -16,6 +17,7 @@ var last_play := {}
 var music_a: AudioStreamPlayer
 var music_b: AudioStreamPlayer
 var current_music := ""
+var track_i := {}  # Playlist -> aktuelles Stück
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -24,14 +26,17 @@ func _ready() -> void:
 		var path := "res://assets/audio/sfx/%s.wav" % n
 		if ResourceLoader.exists(path):
 			streams[n] = load(path)
-	for n in MUSIC:
-		var path := "res://assets/audio/music/%s.wav" % n
-		if ResourceLoader.exists(path):
-			var s: AudioStreamWAV = load(path)
-			s.loop_mode = AudioStreamWAV.LOOP_FORWARD
-			s.loop_begin = 0
-			s.loop_end = int(s.get_length() * s.mix_rate)
-			music_streams[n] = s
+	for list_name in MUSIC:
+		var tracks: Array = []
+		for n in MUSIC[list_name]:
+			var path := "res://assets/audio/music/%s.ogg" % n
+			if ResourceLoader.exists(path):
+				var st: AudioStreamOggVorbis = load(path)
+				st.loop = MUSIC[list_name].size() == 1
+				tracks.append(st)
+		if not tracks.is_empty():
+			music_streams[list_name] = tracks
+			track_i[list_name] = randi() % tracks.size()
 	for i in POOL_SIZE:
 		var p := AudioStreamPlayer.new()
 		p.bus = "SFX"
@@ -42,6 +47,7 @@ func _ready() -> void:
 	for m in [music_a, music_b]:
 		m.bus = "Music"
 		add_child(m)
+		m.finished.connect(_on_track_finished.bind(m))
 	apply_volumes()
 
 func _ensure_buses() -> void:
@@ -91,9 +97,27 @@ func music(n: String, fade: float = 1.2) -> void:
 	if n == current_music or not music_streams.has(n):
 		return
 	current_music = n
+	# Beim Wiedereinstieg in eine Playlist das nächste Stück nehmen (Abwechslung zwischen den Welten)
+	var tracks: Array = music_streams[n]
+	track_i[n] = (int(track_i.get(n, 0)) + 1) % tracks.size()
+	_crossfade(tracks[track_i[n]], fade)
+
+# Ende eines Stücks aus einer Playlist -> nächstes Stück
+func _on_track_finished(m: AudioStreamPlayer) -> void:
+	if current_music == "" or not music_streams.has(current_music):
+		return
+	var tracks: Array = music_streams[current_music]
+	if m.stream not in tracks:
+		return
+	track_i[current_music] = (int(track_i.get(current_music, 0)) + 1) % tracks.size()
+	m.stream = tracks[track_i[current_music]]
+	m.volume_db = 0.0
+	m.play()
+
+func _crossfade(stream: AudioStream, fade: float) -> void:
 	var old := music_a if music_a.playing else music_b
 	var nxt := music_b if old == music_a else music_a
-	nxt.stream = music_streams[n]
+	nxt.stream = stream
 	nxt.volume_db = -40.0
 	nxt.play()
 	var tw := create_tween().set_parallel(true)

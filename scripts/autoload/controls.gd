@@ -15,6 +15,26 @@ func _ready() -> void:
 	_action("dash", [KEY_SHIFT, KEY_K], [JOY_BUTTON_B, JOY_BUTTON_LEFT_SHOULDER], [[JOY_AXIS_TRIGGER_LEFT, 1.0]], [MOUSE_BUTTON_RIGHT])
 	_action("pause", [KEY_ESCAPE, KEY_P], [JOY_BUTTON_START], [])
 	_action("reroll", [KEY_R], [JOY_BUTTON_Y], [])
+	# Godot belegt Bestätigen/Zurück in Menüs standardmäßig nur mit der Tastatur -> Controller ergänzen
+	_add_pad("ui_accept", [JOY_BUTTON_A], [])
+	_add_pad("ui_cancel", [JOY_BUTTON_B], [])
+	_add_pad("ui_focus_prev", [JOY_BUTTON_LEFT_SHOULDER], [])
+	_add_pad("ui_focus_next", [JOY_BUTTON_RIGHT_SHOULDER], [])
+
+func _add_pad(name: String, buttons: Array, axes: Array) -> void:
+	if not InputMap.has_action(name):
+		InputMap.add_action(name, 0.5)
+	for b in buttons:
+		var e := InputEventJoypadButton.new()
+		e.button_index = b
+		if not InputMap.action_has_event(name, e):
+			InputMap.action_add_event(name, e)
+	for a in axes:
+		var e := InputEventJoypadMotion.new()
+		e.axis = a[0]
+		e.axis_value = a[1]
+		if not InputMap.action_has_event(name, e):
+			InputMap.action_add_event(name, e)
 
 func _action(name: String, keys: Array, buttons: Array, axes: Array, mouse: Array = []) -> void:
 	if InputMap.has_action(name):
@@ -47,6 +67,33 @@ func _input(event: InputEvent) -> void:
 		using_gamepad = false
 	elif event is InputEventKey or event is InputEventMouseButton:
 		using_gamepad = false
+	# Controller im Menü ohne Fokus (z. B. nach Mausbenutzung): ersten Knopf der obersten Ebene fokussieren
+	if (event is InputEventJoypadButton or event is InputEventJoypadMotion) and event.is_pressed() and not event.is_echo():
+		for a in ["ui_up", "ui_down", "ui_left", "ui_right", "ui_accept"]:
+			if event.is_action(a):
+				_recover_focus()
+				break
+
+func _recover_focus() -> void:
+	var vp := get_viewport()
+	if vp.gui_get_focus_owner() != null:
+		return
+	var best: Control = null
+	var best_layer := -1000000
+	var stack: Array = [get_tree().root]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for i in range(n.get_child_count() - 1, -1, -1):
+			stack.append(n.get_child(i))
+		if n is BaseButton and n.focus_mode == Control.FOCUS_ALL and not n.disabled and n.is_visible_in_tree():
+			var cl := (n as Control).get_canvas_layer_node()
+			var layer: int = cl.layer if cl else 0
+			if layer > best_layer:
+				best_layer = layer
+				best = n
+	if best:
+		best.grab_focus()
+		vp.set_input_as_handled()
 
 # Rechter Stick zum Zielen; bleibt bei der letzten Richtung, wenn losgelassen.
 # Zielhilfe: Gegner in einem schmalen Kegel um die Stick-Richtung werden leicht angezogen.

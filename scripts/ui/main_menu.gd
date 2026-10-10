@@ -45,14 +45,22 @@ func _ready() -> void:
 		net_message = msg
 		if screen == "mp" and is_inside_tree():
 			show_multiplayer())
-	if Save.data.has("net_name"):
+	# Mit Steam immer den Steam-Namen nehmen, sonst den selbst gewählten
+	if SteamService.enabled and SteamService.my_name() != "":
+		Net.my_name = SteamService.my_name()
+	elif Save.data.has("net_name"):
 		Net.my_name = Save.data["net_name"]
 	if Net.active:
 		show_multiplayer()
 	else:
 		show_home()
 
+var _refocus := ""
+
 func _clear(scr: String = "") -> void:
+	# Beim Neuaufbau derselben Seite den Fokus auf dem zuletzt benutzten Knopf halten (wichtig für Controller)
+	var f := get_viewport().gui_get_focus_owner()
+	_refocus = str(f.get_meta("fkey")) if f and f.has_meta("fkey") and scr == screen else ""
 	screen = scr
 	if content:
 		content.queue_free()
@@ -62,8 +70,23 @@ func _clear(scr: String = "") -> void:
 
 func _focus_first(c: Control) -> void:
 	await get_tree().process_frame
+	if _refocus != "" and is_instance_valid(content):
+		var n := _find_fkey(content, _refocus)
+		_refocus = ""
+		if n and n.is_visible_in_tree() and not (n is BaseButton and n.disabled):
+			n.grab_focus()
+			return
 	if is_instance_valid(c) and c.is_inside_tree() and c.is_visible_in_tree():
 		c.grab_focus()
+
+func _find_fkey(node: Node, key: String) -> Control:
+	for ch in node.get_children():
+		if ch is Control and ch.has_meta("fkey") and str(ch.get_meta("fkey")) == key:
+			return ch
+		var r := _find_fkey(ch, key)
+		if r:
+			return r
+	return null
 
 func _update_bank() -> void:
 	if is_instance_valid(bank_label):
@@ -91,7 +114,11 @@ func _bank_corner() -> void:
 
 # --- Startseite ---
 func show_home() -> void:
+	var prev := screen
 	_clear("home")
+	# Zurück aus einem Untermenü: Fokus auf den Knopf, über den man hineingegangen ist
+	if prev != "home" and prev != "":
+		_refocus = "home_" + prev
 	var left := UI.vbox(12)
 	left.set_anchors_preset(Control.PRESET_CENTER_LEFT)
 	left.offset_left = 90
@@ -110,21 +137,36 @@ func show_home() -> void:
 	if tut_new:
 		left.add_child(tut)
 	var play := UI.button(L.t("play"), show_setup)
+	play.set_meta("fkey", "home_setup")
 	left.add_child(play)
 	var daily := UI.button(L.t("daily") + _daily_suffix(), _start_daily)
 	left.add_child(daily)
-	left.add_child(UI.button(L.t("multiplayer"), show_multiplayer))
-	left.add_child(UI.button(L.t("workshop"), show_workshop))
-	left.add_child(UI.button(L.t("achievements"), show_achievements))
-	left.add_child(UI.button(L.t("stats"), show_stats))
-	left.add_child(UI.button(L.t("options"), show_options))
+	for e in [["multiplayer", show_multiplayer, "mp"], ["workshop", show_workshop, "workshop"], ["achievements", show_achievements, "achievements"], ["stats", show_stats, "stats"], ["options", show_options, "options"]]:
+		var hb := UI.button(L.t(e[0]), e[1])
+		hb.set_meta("fkey", "home_" + e[2])
+		left.add_child(hb)
 	if not tut_new:
 		left.add_child(tut)
-	left.add_child(UI.button(L.t("quit"), func(): quit_game.emit()))
+	var quit := UI.button(L.t("quit"), func(): quit_game.emit())
+	left.add_child(quit)
 	for c in left.get_children():
 		if c is Button:
 			c.custom_minimum_size.y = 44
 	content.add_child(left)
+	# Credits klein unten rechts (per Controller: von BEENDEN aus nach unten/rechts)
+	var cr := UI.button(L.t("credits_title"), show_credits, 170)
+	cr.custom_minimum_size.y = 38
+	cr.set_meta("fkey", "home_credits")
+	cr.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	cr.offset_left = -200
+	cr.offset_right = -30
+	cr.offset_top = -100
+	cr.offset_bottom = -62
+	content.add_child(cr)
+	quit.focus_neighbor_bottom = quit.get_path_to(cr)
+	quit.focus_neighbor_right = quit.get_path_to(cr)
+	cr.focus_neighbor_top = cr.get_path_to(quit)
+	cr.focus_neighbor_left = cr.get_path_to(quit)
 	_bank_corner()
 	var best := UI.label(L.t("best_score") + ": " + UI.fmt_num(Save.stat("best_score")), 16, UI.DIM, "mono")
 	best.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
@@ -174,6 +216,7 @@ func show_setup() -> void:
 		if not unlocked:
 			b.text = "× " + b.text
 		b.button_pressed = id == sel_weapon
+		b.set_meta("fkey", "w_" + id)
 		b.pressed.connect(func():
 			sel_weapon = id
 			Sfx.play("ui_select", -6.0)
@@ -202,6 +245,7 @@ func show_setup() -> void:
 		b.text = L.t("skin_" + id) if ok else "?"
 		b.tooltip_text = L.t("skin_locked") % L.t("ach_" + Data.SKINS[id]["ach"]) if not ok else ""
 		b.button_pressed = id == Save.data.get("skin", "frost")
+		b.set_meta("fkey", "s_" + id)
 		b.add_theme_color_override("font_color", sc)
 		b.add_theme_color_override("font_pressed_color", Color(sc.r * 1.6, sc.g * 1.6, sc.b * 1.6))
 		b.pressed.connect(func():
@@ -222,6 +266,8 @@ func show_setup() -> void:
 	var plus := UI.button("+", func():
 		sel_heat = mini(Save.max_heat_unlocked(), sel_heat + 1)
 		show_setup(), 60)
+	minus.set_meta("fkey", "heat-")
+	plus.set_meta("fkey", "heat+")
 	minus.disabled = sel_heat <= 0
 	plus.disabled = sel_heat >= Save.max_heat_unlocked()
 	hrow.add_child(minus)
@@ -291,6 +337,7 @@ func show_workshop() -> void:
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size = Vector2(900, 470)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
 	var list := UI.vbox(8)
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(list)
@@ -304,6 +351,7 @@ func show_workshop() -> void:
 		var cost := Save.upgrade_cost(id)
 		var b := _shop_row(list, L.t("meta_" + id), L.t("meta_" + id + "_d"), "%d/%d" % [lvl, mx],
 			L.t("maxed") if maxed else "$" + UI.fmt_num(cost), maxed or Save.data["bank"] < cost)
+		b.set_meta("fkey", "buy_" + id)
 		b.pressed.connect(func():
 			if Save.buy_upgrade(id):
 				Sfx.play("buy")
@@ -318,6 +366,7 @@ func show_workshop() -> void:
 		var owned := Save.weapon_unlocked(id)
 		var cost: int = Data.WEAPONS[id]["cost"]
 		var b := _shop_row(list, L.t("weapon_" + id), L.t("weapon_" + id + "_d"), "", L.t("owned") if owned else "$" + UI.fmt_num(cost), owned or Save.data["bank"] < cost)
+		b.set_meta("fkey", "wbuy_" + id)
 		b.pressed.connect(func():
 			if Save.buy_weapon(id):
 				Sfx.play("buy")
@@ -358,6 +407,7 @@ func show_achievements() -> void:
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size = Vector2(860, 480)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 26)
@@ -416,6 +466,71 @@ func show_stats() -> void:
 	content.add_child(UI.center(p))
 	_focus_first(back)
 
+func show_credits() -> void:
+	_clear("credits")
+	var p := UI.panel()
+	var v := UI.vbox(6)
+	p.add_child(v)
+	_header(v, L.t("credits_title"))
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(820, 430)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
+	var list := UI.vbox(4)
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(list)
+	v.add_child(scroll)
+	var sections := [
+		[L.t("cr_music"), ["Kevin MacLeod (incompetech.com)",
+			"\"Mesmerizing Galaxy\", \"Darkling\", \"Voltaic\", \"Ouroboros\", \"Cyborg Ninja\", \"Exit the Premises\"",
+			"Licensed under Creative Commons: By Attribution 4.0 License", "http://creativecommons.org/licenses/by/4.0/"]],
+		[L.t("cr_sfx"), ["Kenney (www.kenney.nl) – CC0 1.0",
+			"Sci-Fi Sounds, Digital Audio, Interface Sounds, Impact Sounds, UI Audio, Music Jingles"]],
+		[L.t("cr_fonts"), ["Inter – SIL Open Font License 1.1", "DejaVu Sans Mono – Bitstream Vera / DejaVu License"]],
+		[L.t("cr_engine"), ["Godot Engine – MIT License – godotengine.org/license",
+			"GodotSteam – MIT License – GP Garcia, Chris Ridenour and contributors", "Steamworks SDK © Valve Corporation"]],
+	]
+	for sec in sections:
+		list.add_child(UI.spacer(6))
+		list.add_child(UI.label(sec[0], 18, UI.ACCENT, "mono"))
+		for line in sec[1]:
+			var l := UI.label(line, 15, Color(0.9, 0.95, 1.0))
+			l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			list.add_child(l)
+	# Godot verlangt den Lizenztext im fertigen Spiel
+	list.add_child(UI.spacer(10))
+	var gl := UI.label(Engine.get_license_text(), 11, Color(1, 1, 1, 0.45), "mono")
+	gl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	list.add_child(gl)
+	v.add_child(UI.spacer(6))
+	var back := UI.button(L.t("back"), show_home, 220)
+	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	v.add_child(back)
+	content.add_child(UI.center(p))
+	_focus_first(back)
+
+# Mit dem Controller (rechter Stick oder Steuerkreuz hoch/runter auf dem Zurück-Knopf) die Credits scrollen
+func _process(delta: float) -> void:
+	if screen != "credits" or not is_instance_valid(content):
+		return
+	var sc := _find_scroll(content)
+	if sc == null:
+		return
+	var y := Input.get_joy_axis(0, JOY_AXIS_RIGHT_Y)
+	if absf(y) < 0.25:
+		y = Input.get_joy_axis(0, JOY_AXIS_LEFT_Y)
+	if absf(y) > 0.25:
+		sc.scroll_vertical += int(y * 900.0 * delta)
+
+func _find_scroll(n: Node) -> ScrollContainer:
+	for ch in n.get_children():
+		if ch is ScrollContainer:
+			return ch
+		var r := _find_scroll(ch)
+		if r:
+			return r
+	return null
+
 func show_options() -> void:
 	_clear("options")
 	var o := Options.new()
@@ -434,14 +549,22 @@ func show_multiplayer() -> void:
 		var nl := UI.label(L.t("net_name"), 18, UI.DIM, "mono")
 		nl.custom_minimum_size = Vector2(160, 0)
 		name_row.add_child(nl)
-		var ne := LineEdit.new()
-		ne.text = Net.my_name
-		ne.max_length = 16
-		ne.custom_minimum_size = Vector2(320, 42)
-		ne.text_changed.connect(func(tx):
-			Net.my_name = tx if tx.strip_edges() != "" else "Player"
-			Save.data["net_name"] = Net.my_name)
-		name_row.add_child(ne)
+		if SteamService.enabled and SteamService.my_name() != "":
+			Net.my_name = SteamService.my_name()
+			var sn := UI.label(Net.my_name, 22, Color(0.9, 0.95, 1.0))
+			sn.custom_minimum_size = Vector2(320, 42)
+			sn.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			name_row.add_child(sn)
+			name_row.add_child(UI.label(L.t("net_from_steam"), 14, UI.DIM, "mono"))
+		else:
+			var ne := LineEdit.new()
+			ne.text = Net.my_name
+			ne.max_length = 16
+			ne.custom_minimum_size = Vector2(320, 42)
+			ne.text_changed.connect(func(tx):
+				Net.my_name = tx if tx.strip_edges() != "" else "Player"
+				Save.data["net_name"] = Net.my_name)
+			name_row.add_child(ne)
 		v.add_child(name_row)
 		var mode_row := UI.hbox(10)
 		var ml := UI.label(L.t("net_mode"), 18, UI.DIM, "mono")
@@ -452,6 +575,7 @@ func show_multiplayer() -> void:
 			b.toggle_mode = true
 			b.button_pressed = host_mode == m
 			b.text = L.t("net_" + m)
+			b.set_meta("fkey", "mode_" + m)
 			b.custom_minimum_size = Vector2(200, 44)
 			b.pressed.connect(func():
 				host_mode = m
@@ -486,7 +610,16 @@ func show_multiplayer() -> void:
 			Save.save_data()
 			Net.join_code(code.text)
 		code.text_submitted.connect(func(_t): do_join.call())
+		# Controller: Steam-Bildschirmtastatur (Big Picture / Steam Deck); sonst Code über EINFÜGEN
+		code.focus_entered.connect(func():
+			if Controls.using_gamepad:
+				SteamService.show_keyboard(Rect2(code.get_screen_position(), code.size)))
 		join_row.add_child(code)
+		join_row.add_child(UI.button(L.t("net_paste"), func():
+			var clip := DisplayServer.clipboard_get().strip_edges().to_upper()
+			if clip != "":
+				code.text = clip.substr(0, code.max_length)
+				do_join.call(), 150))
 		join_row.add_child(UI.button(L.t("net_join"), do_join, 160))
 		v.add_child(join_row)
 		if net_message != "":
@@ -538,6 +671,7 @@ func show_multiplayer() -> void:
 	if Net.is_host:
 		var mode_btn := UI.button(L.t("net_mode") + ": " + L.t("net_" + Net.mode), func():
 			Net.set_mode("versus" if Net.mode == "coop" else "coop"), 260)
+		mode_btn.set_meta("fkey", "lobby_mode")
 		brow.add_child(mode_btn)
 		var start := UI.button(L.t("start"), func(): Net.start_game(), 200)
 		start.disabled = not Net.all_ready()
@@ -547,6 +681,7 @@ func show_multiplayer() -> void:
 		var me: Dictionary = Net.players.get(Net.my_id(), {})
 		var is_ready: bool = me.get("ready", false)
 		var rb := UI.button(L.t("net_not_ready") if is_ready else L.t("net_ready_btn"), func(): Net.set_ready(not is_ready), 260)
+		rb.set_meta("fkey", "lobby_ready")
 		brow.add_child(rb)
 		first = rb
 	if Net.use_steam:

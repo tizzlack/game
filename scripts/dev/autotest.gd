@@ -64,7 +64,7 @@ func _ready() -> void:
 			Net.set_mode(net_mode)
 		else:
 			Net.join_code(Net.encode_lan("127.0.0.1"))
-	elif mode == "menu":
+	elif mode == "menu" or mode == "pad":
 		main.show_menu()
 	else:
 		opts["seed"] = 12345
@@ -102,6 +102,9 @@ func _process(delta: float) -> void:
 		return
 	if mode == "menu":
 		_menu_tour(delta)
+		return
+	if mode == "pad":
+		_pad_test(delta)
 		return
 	if mode == "net" and not net_started:
 		if Net.in_game:
@@ -236,8 +239,96 @@ func _menu_tour(delta: float) -> void:
 		10: _shot("menu_options")
 		11: m.show_multiplayer()
 		12: _shot("menu_multiplayer")
-		13: m.show_home()
-		14: _shot("menu_home2")
-		15:
+		13: m.show_credits()
+		14: _shot("menu_credits")
+		15: m.show_home()
+		16: _shot("menu_home2")
+		17:
 			duration = t
 	menu_step += 1
+
+# Controller-Test: simuliert Steuerkreuz und A/B/Start in Menüs, Spiel und Pause
+var pad_step := 0
+var pad_plan: Array = []
+var pad_fail := 0
+
+func _pad_btn(b: int) -> void:
+	for pressed in [true, false]:
+		var e := InputEventJoypadButton.new()
+		e.button_index = b
+		e.pressed = pressed
+		Input.parse_input_event(e)
+
+func _pad_focus_text() -> String:
+	var f = get_viewport().gui_get_focus_owner()
+	if f is Button:
+		return f.text
+	return str(f)
+
+func _pad_screen() -> String:
+	var m = main.current
+	if m and m.get("screen") != null:
+		return str(m.screen)
+	if m and m.has_method("start_section"):
+		return "game" + ("+" + str(m.overlay.get_script().resource_path.get_file()) if m.overlay else "") + (" paused" if get_tree().paused else "")
+	return str(m)
+
+func _pad_check(what: String, ok: bool) -> void:
+	print("[pad] %s %s  (screen=%s fokus=%s)" % ["OK  " if ok else "FAIL", what, _pad_screen(), _pad_focus_text()])
+	if not ok:
+		pad_fail += 1
+
+func _pad_test(delta: float) -> void:
+	if pad_plan.is_empty():
+		# [Aktion, Argument]: "nav" = so lange runter, bis der Fokus den Text enthält; "btn" = Knopf; "expect" = Bildschirm prüfen
+		pad_plan = [
+			["expect", "home"], ["btn", JOY_BUTTON_DPAD_DOWN], ["btn", JOY_BUTTON_DPAD_UP],
+			["nav", L.t("workshop")], ["btn", JOY_BUTTON_A], ["expect", "workshop"],
+			["btn", JOY_BUTTON_DPAD_DOWN], ["btn", JOY_BUTTON_B], ["expect", "home"], ["focus", L.t("workshop")],
+			["nav", L.t("options")], ["btn", JOY_BUTTON_A], ["expect_opt", true],
+			["btn", JOY_BUTTON_DPAD_DOWN], ["btn", JOY_BUTTON_B], ["expect_opt", false],
+			["nav", L.t("multiplayer")], ["btn", JOY_BUTTON_A], ["expect", "mp"], ["btn", JOY_BUTTON_B], ["expect", "home"],
+			["nav", L.t("play")], ["btn", JOY_BUTTON_A], ["expect", "setup"], ["btn", JOY_BUTTON_B], ["expect", "home"],
+			["nav", L.t("play")], ["btn", JOY_BUTTON_A], ["expect", "setup"], ["nav", L.t("start")], ["btn", JOY_BUTTON_A], ["wait", 1.0], ["expect", "game"],
+			["btn", JOY_BUTTON_START], ["expect", "game+pause_menu.gd paused"], ["btn", JOY_BUTTON_B], ["expect", "game"],
+			["btn", JOY_BUTTON_START], ["btn", JOY_BUTTON_DPAD_DOWN], ["btn", JOY_BUTTON_DPAD_UP], ["btn", JOY_BUTTON_A], ["expect", "game"],
+			["done", 0],
+		]
+	shot_t += delta
+	if shot_t < 0.35:
+		return
+	shot_t = 0.0
+	if pad_step >= pad_plan.size():
+		return
+	var st: Array = pad_plan[pad_step]
+	match st[0]:
+		"btn":
+			_pad_btn(st[1])
+		"wait":
+			shot_t = -float(st[1])
+		"expect":
+			_pad_check("Bildschirm " + str(st[1]), _pad_screen() == str(st[1]))
+		"expect_opt":
+			var m = main.current
+			var has := false
+			if m and m.get("content") and is_instance_valid(m.content):
+				for c in m.content.get_children():
+					if c.get_script() == preload("res://scripts/ui/options_menu.gd"):
+						has = true
+			_pad_check("Optionen offen=" + str(st[1]), has == bool(st[1]))
+		"nav":
+			if not _pad_focus_text().begins_with(str(st[1])):
+				_pad_btn(JOY_BUTTON_DPAD_DOWN if nav_tries < 9 else JOY_BUTTON_DPAD_UP)
+				nav_tries += 1
+				if nav_tries < 20:
+					return
+				_pad_check("nicht gefunden: " + str(st[1]), false)
+			nav_tries = 0
+		"focus":
+			_pad_check("Fokus zurück auf " + str(st[1]), _pad_focus_text().findn(str(st[1])) != -1)
+		"done":
+			print("[pad] fertig, Fehler: %d" % pad_fail)
+			duration = t
+	pad_step += 1
+
+var nav_tries := 0

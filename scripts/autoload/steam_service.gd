@@ -56,6 +56,11 @@ func _process(_d: float) -> void:
 	if enabled:
 		steam.call("run_callbacks")
 
+# Bildschirmtastatur von Steam (nur im Big-Picture-Modus / auf dem Steam Deck sichtbar)
+func show_keyboard(rect: Rect2) -> void:
+	if enabled and steam.has_method("showFloatingGamepadTextInput"):
+		steam.call("showFloatingGamepadTextInput", 0, int(rect.position.x), int(rect.position.y), int(rect.size.x), int(rect.size.y))
+
 func my_name() -> String:
 	if enabled and steam.has_method("getPersonaName"):
 		return str(steam.call("getPersonaName"))

@@ -12,8 +12,9 @@ MIT EINEM FREUND SPIELEN (über Steam)
 - Beide: Steam läuft, Glowline.exe gestartet.
 - Spieler 1: MULTIPLAYER -> Modus wählen (KOOP oder VERSUS) -> LOBBY ERSTELLEN.
   Es erscheint ein Code (z. B. QX7K2M) -> KOPIEREN und dem Freund schicken.
-- Spieler 2: MULTIPLAYER -> Code eingeben -> BEITRETEN.
+- Spieler 2: MULTIPLAYER -> Code eingeben oder EINFÜGEN drücken -> BEITRETEN.
 - Spieler 2: BEREIT MACHEN, dann drückt Spieler 1 START.
+Als Spielername wird dein Steam-Name genommen.
 Hinweis: In Steam wird während des Spielens "Spacewar" angezeigt. Das ist normal –
 das ist Valves Test-App, über die das Spiel bis zur eigenen Steam-Veröffentlichung läuft.
 Einladungen über die Steam-Freundesliste funktionieren nur, wenn das Spiel beim Freund schon läuft;
@@ -26,3 +27,9 @@ Tastatur/Maus: A/D laufen, Leertaste springen (an Wänden: Walljump), S beim Lau
 Maus zielen, Linksklick schießen, Shift Dash, in der Luft S+Shift Ground-Slam, Esc Pause.
 Controller: L-Stick laufen, A springen, R-Stick zielen, RT schießen, B Dash,
 Stick runter + B in der Luft Slam, Start Pause.
+Menüs: Steuerkreuz oder Stick bewegen, A bestätigen, B zurück.
+
+CREDITS
+Musik: Kevin MacLeod (incompetech.com), Licensed under Creative Commons: By Attribution 4.0 License
+http://creativecommons.org/licenses/by/4.0/
+Soundeffekte: Kenney (www.kenney.nl), CC0. Vollständige Liste: CREDITS.md und CREDITS im Spiel.

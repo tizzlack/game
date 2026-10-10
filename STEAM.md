@@ -1,78 +1,81 @@
-# Steam-Anleitung für GLOWLINE
+# Steam guide for GLOWLINE
 
-## 1. Jetzt sofort testen: Spacewar (App-ID 480)
-Solange du keine eigene App-ID hast, nutzt das Spiel **Spacewar** (App-ID 480), die offizielle Test-App von Valve.
-Damit funktionieren Steam-Lobbys, Lobby-Codes, Freundes-Einladungen und das Steam-Relay-Netzwerk
-(Online-Spiel ohne Portfreigabe). Jeder Steam-Account kann Spacewar nutzen.
+## 1. Testing right now: Spacewar (App ID 480)
+Until the game has its own App ID, it uses **Spacewar** (App ID 480), Valve's official test app.
+Steam lobbies, lobby codes, friend invites and the Steam relay network (online play without port forwarding)
+all work through it. Every Steam account can use Spacewar.
 
-Einstellung: `scripts/autoload/steam_service.gd` → `const APP_ID := 480` und die Datei `steam_appid.txt` (Inhalt `480`).
+Setting: `scripts/autoload/steam_service.gd` → `const APP_ID := 480`, and the file `steam_appid.txt` (content `480`).
 
-### GodotSteam installieren
-1. Godot öffnen → **AssetLib** → nach **GodotSteam** suchen.
-2. **GodotSteam GDExtension** (passend zu Godot 4.4) installieren.
-3. Zusätzlich **GodotSteam MultiplayerPeer** installieren (liefert `SteamMultiplayerPeer` für das Online-Spiel).
-4. Editor neu starten. Doku: https://godotsteam.com
+### GodotSteam
+GodotSteam 4.23 (GDExtension, includes `SteamMultiplayerPeer`) is already in `addons/godotsteam/`
+for Windows, Linux and macOS. Nothing needs to be installed. Docs: https://godotsteam.com
 
-Ohne GodotSteam läuft das Spiel trotzdem. Der Multiplayer funktioniert dann nur im LAN (Code mit `L…`).
+Without Steam running, the game still works. Multiplayer then only runs over LAN (codes that start with `L`).
 
-### Online mit Freunden testen
-1. Steam-Client starten und einloggen (bei beiden Spielern).
-2. Spiel starten → **MULTIPLAYER** → Modus wählen (Koop/Versus) → **LOBBY ERSTELLEN**.
-3. Es erscheint ein Code, z. B. `QX7K2M` → **KOPIEREN** und an den Freund schicken.
-4. Freund: **MULTIPLAYER** → Code eingeben → **BEITRETEN**. Alternativ: **FREUNDE EINLADEN** (Steam-Overlay).
-5. Alle auf **BEREIT** → Host drückt **START**.
+### Play online with friends
+1. Start the Steam client and log in (both players).
+2. Start the game → **MULTIPLAYER** → choose a mode (co-op/versus) → **CREATE LOBBY**.
+3. A code appears, for example `QX7K2M` → **COPY** it and send it to your friend.
+4. Friend: **MULTIPLAYER** → type the code or press **PASTE** → **JOIN**. You can also use **INVITE FRIENDS** (Steam overlay).
+5. Everyone else presses **GET READY** → the host presses **START**.
 
-Hinweise zu Spacewar: Erfolge werden auf der Test-App nicht gesetzt (die gibt es dort nicht).
-Bestenlisten bekommen das Präfix `GLOWLINE_`, damit sie sich nicht mit anderen Test-Spielen überschneiden.
+Your Steam name is used automatically as your player name.
 
-## 2. Eigene App-ID (für den echten Release)
-1. Steamworks-Partnerkonto anlegen: https://partner.steamgames.com (Steuer- und Bankdaten, Identitätsprüfung).
-2. **Steam Direct**-Gebühr bezahlen (100 USD pro Spiel, wird ab 1.000 USD Umsatz zurückerstattet) → du bekommst eine App-ID.
-3. App-ID eintragen: `const APP_ID := <deine ID>` in `steam_service.gd` und in `steam_appid.txt`.
-4. In Steamworks unter **Stats & Achievements** diese Erfolge mit genau diesen API-Namen anlegen:
+Notes on Spacewar: achievements are not set on the test app, because it does not have them.
+Leaderboards get the prefix `GLOWLINE_`, so they do not mix with other test games.
 
-| API-Name | Bedeutung |
+## 2. Your own App ID (for the real release)
+1. Create a Steamworks partner account: https://partner.steamgames.com (tax and bank details, identity check).
+2. Pay the **Steam Direct** fee (USD 100 per game, refunded after USD 1,000 in revenue). You then get an App ID.
+3. Enter the App ID: `const APP_ID := <your ID>` in `steam_service.gd` and in `steam_appid.txt`.
+4. In Steamworks, under **Stats & Achievements**, create these achievements with exactly these API names:
+
+| API name | Meaning |
 |---|---|
-| ACH_FIRST_BLOOD | Ersten Gegner besiegt |
-| ACH_KILLS_100 | 100 Gegner besiegt |
-| ACH_KILLS_1000 | 1000 Gegner besiegt |
-| ACH_COMBO_15 | 15er-Kombo |
-| ACH_COMBO_40 | 40er-Kombo |
-| ACH_WORLD_1 | Boss von Neon City besiegt |
-| ACH_WORLD_2 | Boss des Staubsektors besiegt |
-| ACH_WIN | Run gewonnen |
-| ACH_HEAT_3 | Run auf Hitze 3+ gewonnen |
-| ACH_LOOP | Welt im Endlos-Modus geschafft |
-| ACH_DAILY | Tägliche Herausforderung beendet |
-| ACH_UNTOUCHED | Abschnitt ohne Schaden |
-| ACH_RICH | 10.000 Credits verdient |
-| ACH_ARSENAL | Alle Waffen freigeschaltet |
-| ACH_BUILD | 12 Karten in einem Run |
-| ACH_BOSS_FAST | Boss in unter 90 Sekunden |
+| ACH_FIRST_BLOOD | First enemy defeated |
+| ACH_KILLS_100 | 100 enemies defeated |
+| ACH_KILLS_1000 | 1000 enemies defeated |
+| ACH_COMBO_15 | 15 combo |
+| ACH_COMBO_40 | 40 combo |
+| ACH_WORLD_1 | Neon City boss defeated |
+| ACH_WORLD_2 | Dust Sector boss defeated |
+| ACH_WIN | Run won |
+| ACH_HEAT_3 | Run won on heat 3+ |
+| ACH_LOOP | World cleared in endless mode |
+| ACH_DAILY | Daily challenge finished |
+| ACH_UNTOUCHED | Section without taking damage |
+| ACH_RICH | 10,000 credits earned |
+| ACH_ARSENAL | All weapons unlocked |
+| ACH_BUILD | 12 cards in one run |
+| ACH_BOSS_FAST | Boss in under 90 seconds |
 
-5. Bestenlisten (`highscore`, `daily_JJJJMMTT`) werden vom Spiel automatisch angelegt.
-6. **Steam Input / Controller:** In Steamworks „volle Controller-Unterstützung“ angeben. Das Spiel unterstützt Xbox-, PlayStation- und Switch-Pro-Layouts über Godot.
-7. **Steam Deck:** 1280×800 wird unterstützt (Seitenverhältnis wird automatisch erweitert), Controller-Hinweise passen sich an.
+5. The game creates the leaderboards (`highscore`, `daily_YYYYMMDD`) automatically.
+6. **Steam Input / controller:** in Steamworks, declare "full controller support". The game supports Xbox,
+   PlayStation and Switch Pro layouts through Godot, in game and in all menus.
+7. **Steam Deck:** 1280×800 is supported (the aspect ratio expands automatically), and controller prompts adapt.
+   Text fields open the Steam on-screen keyboard.
 
-## 3. Build hochladen
-1. Godot → **Editor → Exportvorlagen verwalten** → herunterladen.
-2. **Projekt → Exportieren → Windows** → `build/windows/Glowline.exe`.
-   GodotSteam legt `steam_api64.dll` automatisch dazu. `steam_appid.txt` gehört **nicht** in den Release-Build.
-3. Steamworks-SDK herunterladen → `tools/ContentBuilder` → Depot-Skripte mit deiner App-ID und Depot-ID füllen.
+## 3. Uploading a build
+1. Godot → **Editor → Manage Export Templates** → download.
+2. **Project → Export → Windows** → `build/windows/Glowline.exe`.
+   GodotSteam adds `steam_api64.dll` automatically. `steam_appid.txt` does **not** belong in a build that you upload to Steam.
+3. Download the Steamworks SDK → `tools/ContentBuilder` → fill in the depot scripts with your App ID and depot ID.
 4. `steamcmd +login <user> +run_app_build ..\scripts\app_build_<appid>.vdf +quit`
-5. In Steamworks den Build auf einen Branch setzen (erst `beta`, nach Test `default`).
+5. In Steamworks, set the build live on a branch (first `beta`, after testing `default`).
 
-## 4. Store-Seite und Launch-Checkliste
-- **Coming-Soon-Seite früh online stellen** (Monate vor Release). Wunschlisten sind der wichtigste Faktor für die Sichtbarkeit zum Start.
-- Grafiken: Header-Kapsel 920×430, kleine Kapsel 462×174, Hauptkapsel 1232×706, vertikale Kapsel 748×896,
-  Bibliothek 600×900, Bibliothek-Hero 3840×1240, Logo (PNG, transparent). Mindestens 5 Screenshots (1920×1080).
-- **Trailer** (30–60 s): in den ersten 5 Sekunden Gameplay zeigen (Movement, Explosionen, zerstörbares Gelände, Koop).
+## 4. Store page and launch checklist
+- **Put a Coming Soon page online early** (months before release). Wishlists are the most important factor for visibility at launch.
+- Graphics: header capsule 920×430, small capsule 462×174, main capsule 1232×706, vertical capsule 748×896,
+  library capsule 600×900, library hero 3840×1240, logo (transparent PNG). At least 5 screenshots (1920×1080).
+- **Trailer** (30–60 s): show gameplay in the first 5 seconds (movement, explosions, destructible terrain, co-op).
 - Tags: Action Roguelike, Run and Gun, Platformer, 2D, Neon, Fast-Paced, Co-op, Online Co-Op, PvP, Controller.
-- Preis: Für ein Indie-Roguelite dieser Größe sind 7–10 € üblich, Launch-Rabatt 10–20 %.
-- **Demo** veröffentlichen und beim **Steam Next Fest** mitmachen (bringt viele Wunschlisten).
-- Kurzclips (TikTok, YouTube Shorts, Reddit r/IndieGaming, r/roguelites), Discord-Server, Streamer und YouTuber anschreiben.
-- Updates nach dem Launch (neue Welten, Waffen, Karten) halten das Spiel in den Steam-Listen.
+- Price: 7–10 € is common for an indie roguelite of this size, with a 10–20 % launch discount.
+- Release a **demo** and take part in **Steam Next Fest** (it brings many wishlists).
+- Short clips (TikTok, YouTube Shorts, Reddit r/IndieGaming, r/roguelites), a Discord server, and reaching out to streamers and YouTubers.
+- Updates after launch (new worlds, weapons, cards) keep the game visible in the Steam lists.
+- Credits: the music is CC BY 4.0, so keep the attribution from `CREDITS.md` in the game and on the store page.
 
-**Ehrlicher Hinweis:** Wie viel ein Spiel verdient, hängt vor allem von Marketing, Wunschlisten und Qualität ab.
-Viele Steam-Spiele verdienen wenig, ein gutes Indie-Spiel mit starker Vermarktung kann aber deutlich mehr erreichen.
-Eine Garantie gibt es nicht.
+**Honest note:** How much a game earns depends mostly on marketing, wishlists and quality.
+Many Steam games earn little, while a good indie game with strong marketing can earn much more.
+There is no guarantee.
