@@ -4,7 +4,7 @@ extends Node2D
 const Neon = preload("res://scripts/core/neon.gd")
 const Figure = preload("res://scripts/core/figure.gd")
 
-enum K { SPARK, DOT, RING, FLASH, TEXT, BOLT, GHOST, DEBRIS, TRACE, BANNER_RING }
+enum K { SPARK, DOT, RING, FLASH, TEXT, BOLT, GHOST, DEBRIS, TRACE, BANNER_RING, STAR, SEG, HALO }
 
 class P:
 	var kind := 0
@@ -77,8 +77,8 @@ func _draw() -> void:
 				var r := p.size * (1.0 - t * t) + 4.0
 				Neon.circle(self, p.pos, r, Neon.fade(p.col, t), 2.5 * t + 0.5, 0.8)
 			K.FLASH:
-				draw_circle(p.pos, p.size * (1.4 - t * 0.4), Neon.hdr(Neon.fade(p.col, t * t * 0.7), 1.5))
-				draw_circle(p.pos, p.size * 2.2, Neon.fade(p.col, t * t * 0.12))
+				draw_circle(p.pos, p.size * (0.5 + 0.5 * t), Neon.hdr(Neon.fade(p.col, t * t * 0.8), 1.5))
+				Neon.halo(self, p.pos, p.size * 2.6, Neon.fade(p.col, t * t * 0.35))
 			K.TEXT:
 				var a := clampf(t * 2.5, 0.0, 1.0)
 				var fs := int(p.size)
@@ -88,7 +88,20 @@ func _draw() -> void:
 				var pts: PackedVector2Array = p.data
 				Neon.polyline(self, pts, Neon.fade(p.col, t), 2.0 * t + 0.6, 1.0)
 			K.GHOST:
-				Figure.draw(self, p.data, Neon.fade(p.col, t * 0.45), 2.0, 0.5)
+				Figure.draw(self, p.data, Neon.fade(p.col, t * p.size), 2.2, 0.6)
+			K.STAR:
+				var n: int = p.data if p.data != null else 8
+				for k in n:
+					var dir := Vector2.from_angle(p.rot + TAU * k / n)
+					var ln := p.size * (0.4 + 0.6 * t) * (1.0 if k % 2 == 0 else 0.55) * (0.8 + 0.4 * fposmod(k * 0.618, 1.0))
+					draw_line(p.pos, p.pos + dir * ln, Neon.hdr(Neon.fade(Color.WHITE, t), 1.5), 2.0 * t + 0.5)
+					draw_line(p.pos, p.pos + dir * ln * 1.3, Neon.fade(p.col, t * 0.35), 6.0 * t + 1.0)
+				draw_circle(p.pos, p.size * 0.18 * t + 1.0, Neon.hdr(Color.WHITE, 2.0))
+			K.HALO:
+				Neon.halo(self, p.pos, p.size * (0.6 + 0.4 * (1.0 - t)), Neon.fade(p.col, t * t * 0.5))
+			K.SEG:
+				var half: Vector2 = Vector2.from_angle(p.rot) * p.size
+				Neon.line(self, p.pos - half, p.pos + half, Neon.fade(p.col, minf(1.0, t * 1.6)), 2.2, 0.9)
 			K.DEBRIS:
 				var d := Vector2.from_angle(p.rot) * p.size
 				Neon.line(self, p.pos - d, p.pos + d, Neon.fade(p.col, t), 1.6, 0.7)
@@ -108,16 +121,67 @@ func sparks(pos: Vector2, col: Color, count: int, speed: float, dir: Vector2 = V
 		p.grav = 300.0
 
 func hit(pos: Vector2, col: Color, dir: Vector2) -> void:
-	sparks(pos, col, 5, 380.0, -dir, 0.9)
-	_add(K.FLASH, pos, Vector2.ZERO, 0.08, col, 9.0)
+	sparks(pos, col, 6, 420.0, -dir, 0.9)
+	_add(K.FLASH, pos, Vector2.ZERO, 0.08, col, 10.0)
+	star(pos, col, 16.0, 0.09)
+
+func star(pos: Vector2, col: Color, size: float, life: float = 0.12, rays: int = 8) -> void:
+	var p := _add(K.STAR, pos, Vector2.ZERO, life, col, size)
+	p.rot = randf() * TAU
+	p.drag = 0.0
+	p.data = rays
+
+const CONFETTI := [Color(1.0, 0.35, 0.6), Color(0.35, 0.9, 1.0), Color(1.0, 0.85, 0.3), Color(1, 1, 1), Color(0.5, 1.0, 0.6), Color(0.8, 0.5, 1.0)]
+
+# Großer Gegner-Tod: Sternblitz mit vielen Strahlen, heller Kern, bunte Konfetti-Funken
+func death_burst(pos: Vector2, col: Color, size: float = 1.0) -> void:
+	star(pos, Color(1.0, 0.92, 0.6), 120.0 * size, 0.4, 16)
+	star(pos, col, 70.0 * size, 0.26, 12)
+	_add(K.FLASH, pos, Vector2.ZERO, 0.12, Color(1, 1, 0.95), 14.0 * size)
+	_add(K.FLASH, pos, Vector2.ZERO, 0.3, Color(1.0, 0.85, 0.5), 20.0 * size)
+	var halo := _add(K.HALO, pos, Vector2.ZERO, 0.55, Color(1.0, 0.85, 0.5), 100.0 * size)
+	halo.drag = 0.0
+	_add(K.RING, pos, Vector2.ZERO, 0.35, col, 70.0 * size)
+	for i in int(64 * size):
+		var c: Color = CONFETTI[randi() % CONFETTI.size()] if randf() < 0.75 else col
+		var p := _add(K.SPARK, pos, Vector2.from_angle(randf() * TAU) * randf_range(180, 820) * sqrt(size), randf_range(0.5, 1.2), c, randf_range(1.6, 2.8))
+		p.drag = 2.6
+		p.grav = 420.0
+	for i in int(26 * size):
+		var c: Color = CONFETTI[randi() % CONFETTI.size()]
+		var p := _add(K.DEBRIS, pos + Vector2(randf_range(-6, 6), randf_range(-6, 6)), Vector2.from_angle(randf() * TAU) * randf_range(80, 380), randf_range(0.7, 1.4), c, randf_range(1.5, 3.0))
+		p.drag = 2.2
+		p.grav = 300.0
+		p.spin = randf_range(-16, 16)
+		p.rot = randf() * TAU
+
+# Figur zerspringt in ihre leuchtenden Liniensegmente
+func shatter(pose_global: Dictionary, col: Color, from: Vector2) -> void:
+	for s in pose_global["segs"]:
+		var a: Vector2 = s[0]
+		var b: Vector2 = s[1]
+		var mid := (a + b) * 0.5
+		var out := (mid - from).normalized()
+		if out == Vector2.ZERO:
+			out = Vector2.UP
+		var p := _add(K.SEG, mid, (out + Vector2(randf_range(-0.6, 0.6), randf_range(-1.2, -0.3))) * randf_range(180, 420), randf_range(0.6, 1.1), col, a.distance_to(b) * 0.5)
+		p.rot = (b - a).angle()
+		p.spin = randf_range(-14, 14)
+		p.grav = 1100.0
+		p.drag = 1.2
+	var h: Vector2 = pose_global["head"]
+	var hp := _add(K.RING, h, Vector2(randf_range(-80, 80), -260), 0.6, col, 10.0)
+	hp.grav = 900.0
+	hp.drag = 1.0
 
 func wall_hit(pos: Vector2, col: Color, normal: Vector2) -> void:
 	sparks(pos, col, 4, 260.0, normal, 1.0)
 	_add(K.FLASH, pos, Vector2.ZERO, 0.06, col, 6.0)
 
 func explosion(pos: Vector2, col: Color, size: float = 1.0) -> void:
-	_add(K.FLASH, pos, Vector2.ZERO, 0.22, Color(1, 1, 1), 26.0 * size)
-	_add(K.FLASH, pos, Vector2.ZERO, 0.35, col, 40.0 * size)
+	star(pos, col, 80.0 * size, 0.28, 12)
+	_add(K.FLASH, pos, Vector2.ZERO, 0.16, Color(1, 1, 1), 16.0 * size)
+	_add(K.FLASH, pos, Vector2.ZERO, 0.3, col, 24.0 * size)
 	_add(K.RING, pos, Vector2.ZERO, 0.45, col, 70.0 * size)
 	sparks(pos, col, int(18 * size), 650.0 * sqrt(size))
 	sparks(pos, Color(1, 1, 1), int(6 * size), 500.0 * sqrt(size))
@@ -164,8 +228,8 @@ func bolt(a: Vector2, b: Vector2, col: Color, life: float = 0.25) -> void:
 	p.data = pts
 	p.drag = 0.0
 
-func ghost(pose_global: Dictionary, col: Color) -> void:
-	var p := _add(K.GHOST, Vector2.ZERO, Vector2.ZERO, 0.28, col, 1.0)
+func ghost(pose_global: Dictionary, col: Color, alpha: float = 0.5, life: float = 0.28) -> void:
+	var p := _add(K.GHOST, Vector2.ZERO, Vector2.ZERO, life, col, alpha)
 	p.data = pose_global
 	p.drag = 0.0
 
@@ -174,6 +238,19 @@ func trace(a: Vector2, b: Vector2, col: Color, width: float, life: float = 0.25)
 	p.data = b
 	p.drag = 0.0
 
+# Geländesplitter: kleine eckige Leuchtstücke, die mit Schwerkraft wegfliegen
+func chips(pos: Vector2, col: Color, count: int, normal: Vector2) -> void:
+	var n := normal if normal != Vector2.ZERO else Vector2.UP
+	for i in count:
+		var dir := n.rotated(randf_range(-1.1, 1.1))
+		var c := col if randf() < 0.6 else Color(1, 1, 1)
+		var p := _add(K.DEBRIS, pos, dir * randf_range(120, 420), randf_range(0.4, 0.9), c, randf_range(1.5, 3.5))
+		p.grav = 1200.0
+		p.drag = 1.5
+		p.spin = randf_range(-20, 20)
+		p.rot = randf() * TAU
+	_add(K.FLASH, pos, Vector2.ZERO, 0.07, col, 8.0)
+
 func dust(pos: Vector2, col: Color, count: int = 6) -> void:
 	for i in count:
 		var dir := Vector2(randf_range(-1, 1), randf_range(-0.5, -0.1)).normalized()
@@ -181,7 +258,8 @@ func dust(pos: Vector2, col: Color, count: int = 6) -> void:
 		p.drag = 5.0
 
 func muzzle(pos: Vector2, dir: Vector2, col: Color) -> void:
-	_add(K.FLASH, pos, Vector2.ZERO, 0.05, col, 10.0)
+	_add(K.FLASH, pos, Vector2.ZERO, 0.05, col, 12.0)
+	star(pos, col, 12.0, 0.05)
 	for i in 3:
 		var p := _add(K.SPARK, pos, dir.rotated(randf_range(-0.5, 0.5)) * randf_range(200, 450), 0.08, col, 1.5)
 		p.drag = 8.0

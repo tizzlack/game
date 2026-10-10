@@ -6,15 +6,15 @@ const WEAPON_ORDER := ["blaster", "scatter", "pulse", "rail", "rocket"]
 
 const WEAPONS := {
 	"blaster": {"cost": 0, "dmg": 10.0, "rate": 7.0, "speed": 1500.0, "spread": 2.0, "count": 1, "life": 0.9,
-		"pierce": 0, "explode": 0.0, "color": Color(0.4, 0.85, 1.0), "sfx": "shoot_blaster", "width": 3.0, "length": 26.0, "shake": 0.0},
+		"pierce": 0, "explode": 0.0, "color": Color(0.4, 0.85, 1.0), "sfx": "shoot_blaster", "width": 3.0, "length": 42.0, "shake": 0.0, "carve": 7.0},
 	"scatter": {"cost": 600, "dmg": 6.5, "rate": 1.9, "speed": 1300.0, "spread": 13.0, "count": 6, "life": 0.34,
-		"pierce": 0, "explode": 0.0, "color": Color(1.0, 0.78, 0.3), "sfx": "shoot_scatter", "width": 2.6, "length": 18.0, "shake": 0.18},
+		"pierce": 0, "explode": 0.0, "color": Color(1.0, 0.78, 0.3), "sfx": "shoot_scatter", "width": 2.6, "length": 18.0, "shake": 0.18, "carve": 5.0},
 	"pulse": {"cost": 900, "dmg": 4.6, "rate": 15.0, "speed": 1650.0, "spread": 6.0, "count": 1, "life": 0.7,
-		"pierce": 0, "explode": 0.0, "color": Color(0.55, 1.0, 0.5), "sfx": "shoot_pulse", "width": 2.4, "length": 18.0, "shake": 0.0},
+		"pierce": 0, "explode": 0.0, "color": Color(0.55, 1.0, 0.5), "sfx": "shoot_pulse", "width": 2.4, "length": 28.0, "shake": 0.0, "carve": 4.5},
 	"rail": {"cost": 1500, "dmg": 44.0, "rate": 1.25, "speed": 4200.0, "spread": 0.0, "count": 1, "life": 0.45,
-		"pierce": 6, "explode": 0.0, "color": Color(1.0, 0.45, 1.0), "sfx": "shoot_rail", "width": 4.0, "length": 90.0, "shake": 0.25},
+		"pierce": 6, "explode": 0.0, "color": Color(1.0, 0.45, 1.0), "sfx": "shoot_rail", "width": 4.0, "length": 90.0, "shake": 0.25, "carve": 12.0},
 	"rocket": {"cost": 2200, "dmg": 24.0, "rate": 1.15, "speed": 850.0, "spread": 1.0, "count": 1, "life": 1.6,
-		"pierce": 0, "explode": 95.0, "color": Color(1.0, 0.55, 0.2), "sfx": "shoot_rocket", "width": 5.0, "length": 22.0, "shake": 0.15},
+		"pierce": 0, "explode": 95.0, "color": Color(1.0, 0.55, 0.2), "sfx": "shoot_rocket", "width": 5.0, "length": 22.0, "shake": 0.15, "carve": 0.0},
 }
 
 # Dauerhafte Upgrades aus der Werkstatt. Preis = base * 1.55^Stufe
@@ -111,17 +111,17 @@ const MAX_HEAT := 5
 
 # Farbwelten. Index 3 = Endlos-Modus.
 const PALETTES := [
-	{"name": "world_0", "sky_top": Color(0.0, 0.0, 0.02), "sky_bottom": Color(0.02, 0.02, 0.07), "ground": Color(0.85, 0.95, 1.0),
-		"fill": Color(0.015, 0.02, 0.05), "ledge": Color(0.35, 1.0, 0.6), "building": Color(0.45, 1.0, 0.8), "window": Color(1.0, 0.62, 0.25),
+	{"name": "world_0", "sky_top": Color(0.0, 0.0, 0.0), "sky_bottom": Color(0.005, 0.005, 0.02), "ground": Color(0.9, 0.97, 1.0),
+		"fill": Color(0.0, 0.0, 0.006), "ledge": Color(0.4, 1.0, 0.65), "building": Color(0.4, 1.0, 0.7), "window": Color(1.0, 0.62, 0.25),
 		"ember": Color(1.0, 0.45, 0.3), "star": Color(0.75, 0.85, 1.0), "enemy": Color(1.0, 0.25, 0.38), "accent": Color(0.3, 0.8, 1.0)},
-	{"name": "world_1", "sky_top": Color(0.03, 0.012, 0.0), "sky_bottom": Color(0.1, 0.045, 0.015), "ground": Color(1.0, 0.95, 0.85),
-		"fill": Color(0.07, 0.035, 0.012), "ledge": Color(0.45, 1.0, 0.8), "building": Color(1.0, 0.8, 0.5), "window": Color(1.0, 0.75, 0.3),
+	{"name": "world_1", "sky_top": Color(0.02, 0.01, 0.0), "sky_bottom": Color(0.07, 0.035, 0.012), "ground": Color(1.0, 0.95, 0.88),
+		"fill": Color(0.035, 0.018, 0.006), "ledge": Color(0.45, 1.0, 0.8), "building": Color(1.0, 0.8, 0.5), "window": Color(1.0, 0.75, 0.3),
 		"ember": Color(1.0, 0.6, 0.25), "star": Color(1.0, 0.8, 0.6), "enemy": Color(1.0, 0.3, 0.3), "accent": Color(1.0, 0.7, 0.3)},
-	{"name": "world_2", "sky_top": Color(0.0, 0.025, 0.015), "sky_bottom": Color(0.035, 0.0, 0.05), "ground": Color(0.55, 1.0, 0.55),
-		"fill": Color(0.015, 0.04, 0.02), "ledge": Color(0.9, 0.55, 1.0), "building": Color(0.6, 1.0, 0.45), "window": Color(0.85, 0.45, 1.0),
+	{"name": "world_2", "sky_top": Color(0.0, 0.01, 0.005), "sky_bottom": Color(0.02, 0.0, 0.03), "ground": Color(0.75, 1.0, 0.75),
+		"fill": Color(0.0, 0.012, 0.004), "ledge": Color(0.9, 0.55, 1.0), "building": Color(0.6, 1.0, 0.45), "window": Color(0.85, 0.45, 1.0),
 		"ember": Color(0.6, 1.0, 0.4), "star": Color(0.7, 1.0, 0.8), "enemy": Color(1.0, 0.3, 0.65), "accent": Color(0.6, 1.0, 0.4)},
-	{"name": "world_3", "sky_top": Color(0.025, 0.0, 0.035), "sky_bottom": Color(0.06, 0.0, 0.07), "ground": Color(1.0, 0.6, 1.0),
-		"fill": Color(0.04, 0.0, 0.05), "ledge": Color(0.4, 0.9, 1.0), "building": Color(1.0, 0.5, 0.9), "window": Color(0.4, 0.9, 1.0),
+	{"name": "world_3", "sky_top": Color(0.01, 0.0, 0.015), "sky_bottom": Color(0.035, 0.0, 0.045), "ground": Color(1.0, 0.75, 1.0),
+		"fill": Color(0.012, 0.0, 0.016), "ledge": Color(0.4, 0.9, 1.0), "building": Color(1.0, 0.5, 0.9), "window": Color(0.4, 0.9, 1.0),
 		"ember": Color(1.0, 0.4, 0.9), "star": Color(1.0, 0.8, 1.0), "enemy": Color(1.0, 0.85, 0.3), "accent": Color(1.0, 0.45, 1.0)},
 ]
 

@@ -28,6 +28,7 @@ var cd := 0.0
 var shape_size := Vector2(22, 54)
 var is_boss := false
 var knock_resist := 0.0
+var last_pose: Dictionary = {}
 
 func setup(g, difficulty: float, color: Color) -> void:
 	game = g
@@ -129,6 +130,8 @@ func die(reward: bool) -> void:
 	if dead:
 		return
 	dead = true
+	if not last_pose.is_empty():
+		game.fx.shatter(Figure.to_global(last_pose, global_transform), col, global_position + Vector2(0, 10))
 	game.on_enemy_killed(self, reward)
 	queue_free()
 
@@ -149,6 +152,13 @@ func draw_color() -> Color:
 	if flash > 0.0:
 		return col.lerp(Color(1.4, 1.4, 1.4), 0.55)
 	return col
+
+# Leuchtendes Visier im Kopf, zeigt die Blickrichtung
+func draw_visor(p: Dictionary, dir: Vector2, c: Color) -> void:
+	var h: Vector2 = p["head"]
+	var r: float = p["head_r"]
+	var d := dir.normalized() if dir != Vector2.ZERO else Vector2(facing, 0)
+	draw_line(h + d * r * 0.1 + Vector2(0, -1), h + d * r * 0.95 + Vector2(0, -1), Neon.hdr(c, 1.6), 2.0)
 
 # Zielhilfe-Linie vor einem Schuss
 func draw_telegraph(target_local: Vector2, strength: float) -> void:

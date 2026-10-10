@@ -5,6 +5,7 @@ const Data = preload("res://scripts/core/data.gd")
 const Neon = preload("res://scripts/core/neon.gd")
 const LevelGen = preload("res://scripts/world/level_gen.gd")
 const TerrainVis = preload("res://scripts/world/terrain_vis.gd")
+const TerrainChunk = preload("res://scripts/world/terrain_chunk.gd")
 const Background = preload("res://scripts/world/background.gd")
 const Props = preload("res://scripts/world/props.gd")
 const Fx = preload("res://scripts/game/fx.gd")
@@ -62,6 +63,10 @@ var hitstop_active := false
 var base_time_scale := 1.0
 var shake_scale := 1.0
 var enemies: Array = []
+var chunks: Array = []
+var carve_rng := RandomNumberGenerator.new()
+var zoom_kick := 0.0
+const BASE_ZOOM := 1.2
 
 func _ready() -> void:
 	bg_layer = CanvasLayer.new()
@@ -107,6 +112,7 @@ func start_section() -> void:
 		world.remove_child(c)
 		c.queue_free()
 	enemies.clear()
+	chunks.clear()
 	checkpoints.clear()
 	goal = null
 	boss = null
@@ -195,23 +201,38 @@ func _spawn_goal(pos: Vector2) -> void:
 func _build_terrain() -> void:
 	var bottom: float = level["bottom"]
 	var i := 0
+	# Boden in Scheiben von max. 360 px schneiden, damit Löcher die Polygone klein halten
 	for pts in level["ground"]:
-		var body := StaticBody2D.new()
-		body.collision_layer = 1
-		body.collision_mask = 0
-		var poly := CollisionPolygon2D.new()
-		var full: PackedVector2Array = pts.duplicate()
-		full.append(Vector2(pts[pts.size() - 1].x, bottom))
-		full.append(Vector2(pts[0].x, bottom))
-		poly.polygon = full
-		body.add_child(poly)
-		var vis := TerrainVis.new()
-		vis.setup_ground(pts, bottom, pal, Run.section_seed() + i)
-		body.add_child(vis)
-		terrain.add_child(body)
-		i += 1
+		var x0: float = pts[0].x
+		var x_end: float = pts[pts.size() - 1].x
+		while x0 < x_end - 1.0:
+			var x1 := minf(x0 + 360.0, x_end)
+			if x_end - x1 < 80.0:
+				x1 = x_end
+			var top := PackedVector2Array()
+			top.append(Vector2(x0, _y_on(pts, x0)))
+			for p in pts:
+				if p.x > x0 + 0.5 and p.x < x1 - 0.5:
+					top.append(p)
+			top.append(Vector2(x1, _y_on(pts, x1)))
+			var poly := top.duplicate()
+			poly.append(Vector2(x1, bottom))
+			poly.append(Vector2(x0, bottom))
+			var seam_xs: Array = []
+			if x0 > pts[0].x + 0.5:
+				seam_xs.append(x0)
+			if x1 < x_end - 0.5:
+				seam_xs.append(x1)
+			_add_chunk("ground", poly, Run.section_seed() + i, seam_xs)
+			i += 1
+			x0 = x1
 	for b in level["blocks"]:
 		var r: Rect2 = b["rect"]
+		if b["kind"] in ["building", "box"]:
+			var poly := PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)])
+			_add_chunk(b["kind"], poly, Run.section_seed() + i, [])
+			i += 1
+			continue
 		var body := StaticBody2D.new()
 		body.collision_layer = 1
 		body.collision_mask = 0
@@ -249,6 +270,34 @@ func _build_terrain() -> void:
 		vis.setup_decor(dcr["kind"], dcr["pos"], pal, Run.section_seed() + i)
 		terrain.add_child(vis)
 		i += 1
+
+func _add_chunk(kind: String, poly: PackedVector2Array, s: int, seam_xs: Array) -> void:
+	var c = TerrainChunk.new()
+	c.setup(kind, poly, pal, s, seam_xs)
+	terrain.add_child(c)
+	chunks.append(c)
+
+static func _y_on(pts: PackedVector2Array, px: float) -> float:
+	for i in range(1, pts.size()):
+		if px <= pts[i].x:
+			var a := pts[i - 1]
+			var b := pts[i]
+			return lerpf(a.y, b.y, 0.0 if b.x - a.x < 0.01 else (px - a.x) / (b.x - a.x))
+	return pts[pts.size() - 1].y
+
+# Stanzt ein Loch ins Gelände und lässt Splitter fliegen
+func carve(pos: Vector2, radius: float, normal: Vector2 = Vector2.UP) -> void:
+	if radius <= 0.0:
+		return
+	var shape = TerrainChunk.stair_shape(pos, radius, carve_rng)
+	var rect := Rect2(pos - Vector2(radius, radius) * 1.2, Vector2(radius, radius) * 2.4)
+	var hit_chunk = null
+	for c in chunks:
+		if c.carve(shape, rect):
+			hit_chunk = c
+	if hit_chunk:
+		var col: Color = hit_chunk.edge_color(Vector2.ZERO, Vector2(1, 0) if absf(normal.y) > 0.5 else Vector2(0, 1))
+		fx.chips(pos, col, int(clampf(radius * 0.8, 4.0, 24.0)), normal)
 
 func spawn_enemy(kind: String, pos: Vector2):
 	if not ENEMIES.has(kind):
@@ -312,6 +361,8 @@ func _process(delta: float) -> void:
 	var offset := Vector2(sin(t * 47.0) + sin(t * 31.0) * 0.5, cos(t * 53.0) + sin(t * 29.0) * 0.5) * sh * 14.0
 	camera.global_position = cam_pos + offset
 	camera.rotation = sin(t * 23.0) * sh * 0.015
+	zoom_kick = lerpf(zoom_kick, 0.0, clampf(6.0 * rdelta, 0.0, 1.0))
+	camera.zoom = Vector2.ONE * BASE_ZOOM * (1.0 + zoom_kick)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause") and state == "play" and overlay == null:
@@ -320,6 +371,12 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func shake(amount: float) -> void:
 	trauma = minf(1.0, trauma + amount)
+
+# Kurzer Zoom-Stoß der Kamera und Bildschirm-Verzerrung
+func punch(amount: float, aberration: float = 0.0) -> void:
+	zoom_kick = minf(0.12, zoom_kick + amount)
+	if aberration > 0.0 and main and main.post:
+		main.post.kick(aberration)
 
 func hitstop(dur: float) -> void:
 	if hitstop_active:
@@ -375,7 +432,9 @@ func explode(pos: Vector2, radius: float, dmg: float) -> void:
 		var k := 1.0 - 0.5 * clampf(d / radius, 0.0, 1.0)
 		e.take_damage(dmg * k, (e.global_position - pos).normalized(), false)
 	fx.explosion(pos, Color(1.0, 0.6, 0.25), radius / 90.0)
+	carve(pos, radius * 0.42)
 	shake(0.25)
+	punch(0.015)
 	Sfx.play_at("explosion", pos, -4.0)
 
 func chain_lightning(from_enemy, dmg: float) -> void:
@@ -407,9 +466,11 @@ func chain_lightning(from_enemy, dmg: float) -> void:
 func on_enemy_killed(e, reward: bool) -> void:
 	var pos: Vector2 = e.global_position
 	var big: bool = e.kind in ["brute", "turret"]
-	fx.explosion(pos, e.col, 1.6 if big else 0.9)
+	fx.death_burst(pos, e.col, 1.4 if big else 1.0)
 	Sfx.play_at("enemy_die", pos, -3.0)
 	shake(0.22 if big else 0.1)
+	if big:
+		punch(0.02, 0.2)
 	if e.is_boss:
 		_boss_defeated(e)
 		return
@@ -430,6 +491,7 @@ func on_enemy_killed(e, reward: bool) -> void:
 func on_player_hurt(_dmg: float) -> void:
 	Run.combo = 0
 	hud.flash_damage()
+	punch(0.03, 0.9)
 
 func boss_phase2() -> void:
 	hud.banner(L.t("boss_phase2"), "", pal["enemy"], 1.2)
@@ -448,6 +510,7 @@ func _boss_defeated(b) -> void:
 	bullets.clear()
 	set_slowmo(0.3)
 	shake(1.0)
+	punch(0.1, 1.0)
 	Sfx.play("big_explosion")
 	for i in 5:
 		fx.explosion(b.global_position + Vector2(randf_range(-60, 60), randf_range(-60, 60)), [b.col, pal["accent"], Color.WHITE][i % 3], 2.2)

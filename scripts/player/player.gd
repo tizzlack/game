@@ -46,6 +46,11 @@ var drop_t := 0.0
 var safe_pos := Vector2.ZERO
 var ground_time := 0.0
 var ghost_t := 0.0
+var trail_t := 0.0
+var spin_t := 0.0
+var spin_dir := 1.0
+var anim_t := 0.0
+const SPIN_TIME := 0.38
 var frozen := false
 var dead := false
 var hurt_flash := 0.0
@@ -91,6 +96,8 @@ func _physics_process(delta: float) -> void:
 	coyote_t = maxf(0.0, coyote_t - delta)
 	land_squash = maxf(0.0, land_squash - delta * 4.0)
 	recoil = maxf(0.0, recoil - delta * 10.0)
+	spin_t = maxf(0.0, spin_t - delta)
+	anim_t += delta
 	if s["shield"] > 0 and not shield_ready:
 		shield_t -= delta
 		if shield_t <= 0.0:
@@ -116,7 +123,7 @@ func _physics_process(delta: float) -> void:
 		ghost_t -= delta
 		if ghost_t <= 0.0:
 			ghost_t = 0.025
-			game.fx.ghost(Figure.to_global(_pose(), global_transform), color)
+			game.fx.ghost(Figure.to_global(_pose(), global_transform), color, 0.55, 0.3)
 		if s["dash_dmg"] > 0.0:
 			for e in game.enemies_near(global_position, 40.0):
 				if not e in dash_hits:
@@ -141,6 +148,8 @@ func _physics_process(delta: float) -> void:
 			elif air_jumps_left > 0:
 				air_jumps_left -= 1
 				_jump(AIR_JUMP_V)
+				spin_t = SPIN_TIME
+				spin_dir = facing
 				game.fx.ring(global_position + Vector2(0, 24), color, 30.0, 0.3)
 		if not frozen and Input.is_action_just_released("jump") and velocity.y < -250.0:
 			velocity.y *= 0.5
@@ -156,7 +165,7 @@ func _physics_process(delta: float) -> void:
 		Sfx.play("land", -14.0)
 	was_on_floor = on_floor
 	if on_floor:
-		run_phase += absf(velocity.x) * delta * 0.045
+		run_phase += absf(velocity.x) * delta * 0.052
 		ground_time += delta
 		if ground_time > 0.25 and _solid_below():
 			safe_pos = global_position
@@ -166,6 +175,11 @@ func _physics_process(delta: float) -> void:
 
 	if not frozen and Input.is_action_pressed("shoot") and fire_cd <= 0.0:
 		_shoot()
+	# Leuchtspur beim schnellen Laufen und in der Luft
+	trail_t -= delta
+	if dash_t <= 0.0 and trail_t <= 0.0 and (absf(velocity.x) > 240.0 or not on_floor):
+		trail_t = 0.05
+		game.fx.ghost(Figure.to_global(_pose(), global_transform), color.lerp(Color(0.3, 0.6, 1.0), 0.5), 0.22, 0.22)
 	queue_redraw()
 
 func _update_aim() -> void:
@@ -306,7 +320,11 @@ func respawn_safe(damage: float) -> void:
 
 func _pose() -> Dictionary:
 	var md := signf(velocity.x) if absf(velocity.x) > 20.0 else facing
-	var p := Figure.pose(run_phase, absf(velocity.x) / RUN_SPEED, md, is_on_floor() or dash_t > 0.0, aim, 10.0 + weapon["length"] * 0.4, velocity.y, recoil)
+	var spin := 0.0
+	if spin_t > 0.0:
+		spin = (1.0 - spin_t / SPIN_TIME) * TAU * spin_dir
+	var extra := {"idle_t": anim_t, "spin": spin, "dash": dash_t > 0.0}
+	var p := Figure.pose(run_phase, absf(velocity.x) / RUN_SPEED, md, is_on_floor(), aim, 10.0 + weapon["length"] * 0.4, velocity.y, recoil, 1.0, extra)
 	if land_squash > 0.0:
 		var sq := 1.0 - land_squash * 0.12
 		for seg in p["segs"]:
@@ -326,6 +344,7 @@ func _draw() -> void:
 		c = Neon.fade(c, 0.35)
 	if dash_t > 0.0:
 		c = Neon.hdr(c, 0.4)
-	Figure.draw(self, _pose(), c, 2.3, 1.1)
+	Neon.halo(self, Vector2(0, -6), 46.0, Neon.fade(c, 0.22))
+	Figure.draw(self, _pose(), Neon.hdr(c, 0.5), 2.8, 1.4)
 	if shield_ready:
 		draw_arc(Vector2(0, -2), 34.0, 0.0, TAU, 32, Neon.fade(color, 0.25 + 0.1 * sin(Time.get_ticks_msec() * 0.006)), 1.5)

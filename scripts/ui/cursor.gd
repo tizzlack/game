@@ -12,10 +12,9 @@ func _process(_d: float) -> void:
 	queue_redraw()
 
 func _draw() -> void:
-	var c := Color(0.8, 0.95, 1.0, 0.9)
-	var r := 9.0
+	var c := Color(0.75, 0.85, 1.0, 0.85)
+	var r := 8.0
 	if game and game.player and game.player.fire_cd > 0.0:
-		r = 11.0
-	for d in [Vector2.RIGHT, Vector2.LEFT, Vector2.UP, Vector2.DOWN]:
-		Neon.line(self, d * (r - 4.0), d * (r + 5.0), c, 1.6, 0.6)
-	draw_circle(Vector2.ZERO, 1.5, Neon.hdr(c, 0.5))
+		r = 9.5
+	Neon.line(self, Vector2(-r, 0), Vector2(r, 0), c, 1.5, 0.5)
+	Neon.line(self, Vector2(0, -r), Vector2(0, r), c, 1.5, 0.5)

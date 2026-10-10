@@ -51,6 +51,15 @@ func _draw() -> void:
 		"antenna": _draw_antenna()
 		"tower": _draw_tower()
 
+# Weicher Lichtschein unterhalb einer Leuchtkante
+func _glow_strip(line_pts: PackedVector2Array, c: Color, depth: float, alpha: float) -> void:
+	var top := Neon.fade(c, alpha)
+	var bot := Neon.fade(c, 0.0)
+	for i in range(1, line_pts.size()):
+		var a := line_pts[i - 1]
+		var b := line_pts[i]
+		draw_polygon(PackedVector2Array([a, b, b + Vector2(0, depth), a + Vector2(0, depth)]), PackedColorArray([top, top, bot, bot]))
+
 func _side(top: Vector2, c: Color, depth: float = 700.0) -> void:
 	# Seitenkante, die nach unten ausblendet
 	var steps := 6
@@ -66,6 +75,7 @@ func _draw_ground(rng: RandomNumberGenerator) -> void:
 	var c: Color = pal["fill"]
 	draw_colored_polygon(fill, Color(c.r, c.g, c.b, 1.0))
 	var g: Color = pal["ground"]
+	_glow_strip(pts, g, 46.0, 0.16)
 	Neon.polyline(self, Neon.jagged(pts, rng), g, 2.2)
 	# zweite, schwache Linie für Tiefe
 	var inner := PackedVector2Array()
@@ -81,6 +91,7 @@ func _draw_building(rng: RandomNumberGenerator) -> void:
 	var top_r := Vector2(rect.end.x, rect.position.y)
 	draw_rect(Rect2(rect.position, Vector2(rect.size.x, 900.0)), Color(pal["fill"].r, pal["fill"].g, pal["fill"].b, 0.92))
 	var top := PackedVector2Array([top_l, top_r])
+	_glow_strip(top, c, 40.0, 0.14)
 	Neon.polyline(self, Neon.jagged(top, rng), c, 2.2)
 	_side(top_l, c, 800.0)
 	_side(top_r, c, 800.0)
@@ -105,6 +116,7 @@ func _draw_box(rng: RandomNumberGenerator) -> void:
 func _draw_ledge(rng: RandomNumberGenerator) -> void:
 	var c: Color = pal["ledge"]
 	var p := PackedVector2Array([rect.position, Vector2(rect.end.x, rect.position.y)])
+	_glow_strip(p, c, 26.0, 0.12)
 	Neon.polyline(self, Neon.jagged(p, rng, 10.0, 1.0), c, 3.0)
 	draw_line(rect.position + Vector2(6, 8), Vector2(rect.end.x - 6, rect.position.y + 8), Neon.fade(c, 0.18), 1.0)
 
@@ -128,12 +140,13 @@ func _draw_antenna() -> void:
 	Neon.dot(self, p + Vector2(0, -62), 2.2, pal["enemy"], 1.0)
 
 func _draw_tower() -> void:
+	# kleiner Funkmast wie in der Vorlage: schmales A-Gerüst mit Raute oben
 	var p := rect.position
-	var c: Color = Neon.fade(pal["ground"], 0.6)
-	Neon.line(self, p + Vector2(-14, 0), p + Vector2(-3, -90), c, 1.6, 0.5)
-	Neon.line(self, p + Vector2(14, 0), p + Vector2(3, -90), c, 1.6, 0.5)
-	for i in 4:
-		var yy := -i * 22.0
-		var wv := 14.0 - i * 2.6
-		Neon.line(self, p + Vector2(-wv, yy), p + Vector2(wv - 2.6, yy - 22.0), Neon.fade(c, 0.6), 1.0, 0.3)
-	Neon.dot(self, p + Vector2(0, -94), 2.5, pal["accent"], 1.0)
+	var c: Color = Neon.fade(pal["ground"].lerp(pal["accent"], 0.3), 0.8)
+	Neon.line(self, p + Vector2(-7, 0), p + Vector2(-1.5, -30), c, 1.3, 0.6)
+	Neon.line(self, p + Vector2(7, 0), p + Vector2(1.5, -30), c, 1.3, 0.6)
+	Neon.line(self, p + Vector2(-5, -10), p + Vector2(5, -10), Neon.fade(c, 0.7), 1.0, 0.3)
+	Neon.line(self, p + Vector2(-3.5, -20), p + Vector2(3.5, -20), Neon.fade(c, 0.7), 1.0, 0.3)
+	var top := p + Vector2(0, -38)
+	var dia := PackedVector2Array([top + Vector2(0, -7), top + Vector2(5, 0), top + Vector2(0, 7), top + Vector2(-5, 0), top + Vector2(0, -7)])
+	Neon.polyline(self, dia, c, 1.3, 0.7)

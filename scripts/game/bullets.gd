@@ -24,6 +24,7 @@ class B:
 	var chain := 0.0
 	var exclude: Array[RID] = []
 	var rail := false
+	var carve := 0.0
 
 var game
 var list: Array[B] = []
@@ -52,6 +53,7 @@ func spawn_player(pos: Vector2, vel: Vector2, w: Dictionary, crit: bool) -> void
 	b.homing = s["homing"]
 	b.chain = s["chain"]
 	b.rail = w["pierce"] >= 4
+	b.carve = w.get("carve", 6.0)
 	list.append(b)
 
 func spawn_enemy(pos: Vector2, vel: Vector2, dmg: float, col: Color, size: float = 1.0) -> void:
@@ -132,6 +134,9 @@ func _step(b: B, delta: float, space: PhysicsDirectSpaceState2D, player) -> bool
 		return false
 	# Wand / Boden
 	var n: Vector2 = res["normal"]
+	var nn := n if n != Vector2.ZERO else -b.vel.normalized()
+	if b.friendly and b.explode <= 0.0:
+		game.carve(hit_pos - nn * 2.0, b.carve * (1.3 if b.crit else 1.0), nn)
 	if b.bounce > 0 and n != Vector2.ZERO:
 		b.vel = b.vel.bounce(n)
 		b.bounce -= 1
@@ -141,15 +146,24 @@ func _step(b: B, delta: float, space: PhysicsDirectSpaceState2D, player) -> bool
 	if b.explode > 0.0 and b.friendly:
 		game.explode(hit_pos, b.explode, b.dmg * 0.8)
 	else:
-		game.fx.wall_hit(hit_pos, b.col, n if n != Vector2.ZERO else -b.vel.normalized())
+		game.fx.wall_hit(hit_pos, b.col, nn)
 	return false
 
 func _draw() -> void:
 	for b in list:
 		var dir := b.vel.normalized()
-		var tail := b.pos - dir * b.length
-		Neon.line(self, tail, b.pos, b.col, b.width, 1.0)
-		if not b.friendly:
-			Neon.dot(self, b.pos, b.width * 0.9, b.col, 1.0)
-		elif b.explode > 0.0:
-			Neon.dot(self, b.pos, b.width * 0.8, b.col, 1.0)
+		if b.friendly:
+			# langer, dünner Schweif
+			var tail := b.pos - dir * b.length * 2.2
+			draw_line(tail, b.pos - dir * 8.0, Neon.fade(b.col, 0.22), 1.6)
+			draw_line(b.pos - dir * b.length * 0.9, b.pos - dir * 8.0, Neon.fade(b.col, 0.45), 1.8)
+			# leuchtender Kopf
+			Neon.halo(self, b.pos - dir * 4.0, 16.0 + b.width * 2.0, Neon.fade(b.col, 0.35))
+			draw_line(b.pos - dir * 13.0, b.pos, Neon.fade(b.col, 0.5), b.width * 2.4)
+			draw_line(b.pos - dir * 11.0, b.pos, Neon.hdr(Color.WHITE, 1.6), b.width)
+			if b.explode > 0.0:
+				Neon.dot(self, b.pos, b.width * 0.8, b.col, 1.0)
+		else:
+			Neon.halo(self, b.pos, 14.0 * b.width / 3.5, Neon.fade(b.col, 0.35))
+			draw_line(b.pos - dir * b.length * 0.7, b.pos, Neon.fade(b.col, 0.55), b.width * 1.6)
+			draw_line(b.pos - dir * b.length * 0.5, b.pos, Neon.hdr(b.col.lerp(Color.WHITE, 0.4), 1.3), b.width * 0.7)

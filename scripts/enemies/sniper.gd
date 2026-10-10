@@ -43,6 +43,8 @@ func _ai(delta: float, p) -> void:
 func _draw() -> void:
 	var p := Figure.pose(0.0, 0.0, facing, is_on_floor(), aim, 22.0, velocity.y)
 	Figure.draw(self, p, draw_color(), 2.0, 1.0)
+	last_pose = p
+	draw_visor(p, aim, Color(1.0, 0.85, 0.9))
 	if state == "aim":
 		var k := 1.0 - state_t / AIM_TIME
 		var from := Vector2(0, -14) + aim * 24.0

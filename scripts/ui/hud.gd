@@ -1,9 +1,25 @@
-# HUD: Punkte (oben links), Kombo, Leben, Credits (oben rechts), Zeit (unten links), Fortschritt, Bossleiste, Banner.
+# HUD im Stil der Vorlage: leuchtende Pixel-Ziffern oben links, Credits oben rechts,
+# unten links kleine Leucht-Balken für Leben und Dash. Dazu Kombo, Bossleiste, Banner und Erfolge.
 extends Control
 
 const Neon = preload("res://scripts/core/neon.gd")
 const UI = preload("res://scripts/ui/ui_kit.gd")
-const Data = preload("res://scripts/core/data.gd")
+
+# 5x7-Pixelschrift für Ziffern
+const GLYPHS := {
+	"0": ["01110", "10001", "10011", "10101", "11001", "10001", "01110"],
+	"1": ["00100", "01100", "00100", "00100", "00100", "00100", "01110"],
+	"2": ["01110", "10001", "00001", "00010", "00100", "01000", "11111"],
+	"3": ["11110", "00001", "00001", "01110", "00001", "00001", "11110"],
+	"4": ["00010", "00110", "01010", "10010", "11111", "00010", "00010"],
+	"5": ["11111", "10000", "11110", "00001", "00001", "10001", "01110"],
+	"6": ["00110", "01000", "10000", "11110", "10001", "10001", "01110"],
+	"7": ["11111", "00001", "00010", "00100", "01000", "01000", "01000"],
+	"8": ["01110", "10001", "10001", "01110", "10001", "10001", "01110"],
+	"9": ["01110", "10001", "10001", "01111", "00001", "00010", "01100"],
+	"$": ["00100", "01111", "10100", "01110", "00101", "11110", "00100"],
+	".": ["00000", "00000", "00000", "00000", "00000", "01100", "01100"],
+}
 
 var game
 var banner_title := ""
@@ -15,16 +31,14 @@ var dmg_flash := 0.0
 var combo_pulse := 0.0
 var shown_score := 0.0
 var shown_credits := 0.0
+var shown_hp := 1.0
 var toasts: Array = []
-var fps_label: Label
-var f_title: Font
 var f_mono: Font
 var f_ui: Font
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	f_title = UI.font("title")
 	f_mono = UI.font("mono")
 	f_ui = UI.font("ui")
 
@@ -54,18 +68,52 @@ func _process(delta: float) -> void:
 	combo_pulse = maxf(0.0, combo_pulse - delta * 3.0)
 	shown_score = lerpf(shown_score, Run.score, clampf(10.0 * delta, 0.0, 1.0))
 	shown_credits = lerpf(shown_credits, Run.credits, clampf(12.0 * delta, 0.0, 1.0))
+	if game and game.player:
+		shown_hp = lerpf(shown_hp, clampf(game.player.hp / game.player.max_hp(), 0.0, 1.0), clampf(8.0 * delta, 0.0, 1.0))
 	for t in toasts:
 		t["t"] -= delta
 	toasts = toasts.filter(func(t): return t["t"] > 0.0)
 	queue_redraw()
 
-func _text(pos: Vector2, s: String, f: Font, size: int, c: Color, align: int = HORIZONTAL_ALIGNMENT_LEFT) -> void:
+# Leuchtender Text: weicher Schein + heller Kern
+func _glow_text(pos: Vector2, s: String, f: Font, size: int, c: Color, align: int = HORIZONTAL_ALIGNMENT_LEFT) -> void:
+	var w := f.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
 	var x := pos.x
 	if align == HORIZONTAL_ALIGNMENT_RIGHT:
-		x -= f.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+		x -= w
 	elif align == HORIZONTAL_ALIGNMENT_CENTER:
-		x -= f.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x * 0.5
-	draw_string(f, Vector2(x, pos.y), s, HORIZONTAL_ALIGNMENT_LEFT, -1, size, c)
+		x -= w * 0.5
+	Neon.halo(self, Vector2(x + w * 0.5, pos.y - size * 0.35), maxf(w * 0.6, size * 1.2), Neon.fade(c, 0.12))
+	draw_string_outline(f, Vector2(x, pos.y), s, HORIZONTAL_ALIGNMENT_LEFT, -1, size, int(size * 0.25), Neon.fade(c, 0.18))
+	draw_string(f, Vector2(x, pos.y), s, HORIZONTAL_ALIGNMENT_LEFT, -1, size, Neon.hdr(c, 0.9))
+
+# Pixel-Ziffern mit Leuchten, wie in der Vorlage
+func _pixel_text(pos: Vector2, s: String, px: float, c: Color, align_right: bool = false) -> void:
+	var adv := px * 6.0
+	var total := adv * s.length() - px
+	var x := pos.x - (total if align_right else 0.0)
+	Neon.halo(self, Vector2(x + total * 0.5, pos.y + px * 3.5), maxf(total * 0.75, px * 9.0), Neon.fade(c, 0.22))
+	for ch in s:
+		var g: Array = GLYPHS.get(ch, [])
+		for row in g.size():
+			var line: String = g[row]
+			for col in line.length():
+				if line[col] == "1":
+					var r := Rect2(x + col * px, pos.y + row * px, px * 0.92, px * 0.92)
+					draw_rect(r.grow(px * 0.35), Neon.fade(c, 0.12))
+					draw_rect(r, Neon.hdr(c, 1.1))
+		x += adv
+
+# Kleiner Leucht-Balken
+func _glow_bar(pos: Vector2, w: float, h: float, ratio: float, c: Color, dim: bool = false) -> void:
+	var r := Rect2(pos, Vector2(w, h))
+	draw_rect(r.grow(1.5), Neon.fade(c, 0.08))
+	draw_rect(r, Color(c.r, c.g, c.b, 0.07))
+	var fill := Rect2(pos, Vector2(w * clampf(ratio, 0.0, 1.0), h))
+	if fill.size.x > 0.5:
+		Neon.halo(self, fill.get_center(), clampf(fill.size.x * 0.35, 10.0, 40.0), Neon.fade(c, 0.05 if dim else 0.09))
+		draw_rect(fill.grow(1.5), Neon.fade(c, 0.2 if dim else 0.35))
+		draw_rect(fill, Neon.hdr(Neon.fade(c, 0.6 if dim else 1.0), 0.4 if dim else 1.0))
 
 func _draw() -> void:
 	if game == null or game.player == null:
@@ -73,102 +121,70 @@ func _draw() -> void:
 	var vs := get_viewport_rect().size
 	var p = game.player
 	var accent: Color = game.pal.get("accent", UI.ACCENT)
-	# Punkte groß und halbtransparent wie in Arcade-Spielen
-	_text(Vector2(24, 70), str(int(round(shown_score))), f_title, 58, Color(1, 1, 1, 0.42))
-	# Kombo
+	# Punkte oben links
+	var score_col := Color(0.78, 0.72, 1.0, 0.75).lerp(accent, 0.2)
+	_pixel_text(Vector2(26, 20), str(int(round(shown_score))), 5.0, score_col)
+	# Kombo unter den Punkten
 	if Run.combo >= 2:
-		var cs := 26 + int(combo_pulse * 10.0)
-		var cc := Neon.hdr(Color(1.0, 0.8, 0.3), 0.4 + combo_pulse)
-		_text(Vector2(26, 106), "x%.1f  %s %d" % [Run.combo_mult(), L.t("combo"), Run.combo], f_mono, cs, cc)
+		var cs := 18 + int(combo_pulse * 8.0)
+		_glow_text(Vector2(28, 84), "x%.1f  %s %d" % [Run.combo_mult(), L.t("combo"), Run.combo], f_mono, cs, Color(1.0, 0.8, 0.3, 0.95))
 		var k := clampf(game.combo_t / Run.stats["combo_window"], 0.0, 1.0)
-		draw_rect(Rect2(26, 114, 180 * k, 3), Neon.fade(Color(1.0, 0.8, 0.3), 0.8))
-	# Lebensleiste
-	var hp_ratio := clampf(p.hp / p.max_hp(), 0.0, 1.0)
-	var bar := Rect2(26, 128, 260, 12)
-	draw_rect(bar, Color(0.1, 0.1, 0.15, 0.7))
-	var hc := Color(0.4, 1.0, 0.6) if hp_ratio > 0.35 else Color(1.0, 0.35, 0.35)
-	draw_rect(Rect2(bar.position, Vector2(bar.size.x * hp_ratio, bar.size.y)), Neon.hdr(Neon.fade(hc, 0.9), 0.3))
-	for i in range(1, 10):
-		var x := bar.position.x + bar.size.x * i / 10.0
-		draw_line(Vector2(x, bar.position.y), Vector2(x, bar.end.y), Color(0, 0, 0, 0.6), 2.0)
-	draw_rect(bar, Neon.fade(hc, 0.6), false, 1.5)
-	_text(Vector2(bar.end.x + 10, bar.end.y + 1), "%d/%d" % [ceili(p.hp), int(p.max_hp())], f_mono, 15, Color(1, 1, 1, 0.7))
-	var icon_x := 26.0
-	if Run.stats["shield"] > 0:
-		var sc := accent if p.shield_ready else Color(0.4, 0.4, 0.5, 0.6)
-		draw_arc(Vector2(icon_x + 8, 160), 8, 0, TAU, 20, sc, 2.0)
-		icon_x += 26.0
-	if Run.revives_left > 0:
-		_text(Vector2(icon_x, 165), "+1", f_mono, 15, Color(1.0, 0.45, 0.6))
-		icon_x += 30.0
-	# Dash-Anzeige
-	var dk: float = p.dash_ready_ratio()
-	draw_rect(Rect2(icon_x, 156, 50, 6), Color(0.1, 0.1, 0.15, 0.7))
-	draw_rect(Rect2(icon_x, 156, 50 * dk, 6), Neon.fade(accent, 0.9 if dk >= 1.0 else 0.45))
-	_text(Vector2(icon_x + 56, 163), "DASH", f_mono, 12, Neon.fade(accent, 0.7 if dk >= 1.0 else 0.35))
+		draw_rect(Rect2(28, 90, 130 * k, 2), Neon.hdr(Neon.fade(Color(1.0, 0.8, 0.3), 0.8), 0.5))
 	# Credits oben rechts
-	_text(Vector2(vs.x - 24, 46), "$" + UI.fmt_num(int(round(shown_credits))), f_title, 34, Neon.hdr(UI.GOLD, 0.3), HORIZONTAL_ALIGNMENT_RIGHT)
-	var wname := L.t(game.pal["name"]) + "  " + Run.label()
-	_text(Vector2(vs.x - 24, 74), wname, f_mono, 16, Color(1, 1, 1, 0.55), HORIZONTAL_ALIGNMENT_RIGHT)
-	_text(Vector2(vs.x - 24, 96), L.t("weapon_" + Run.weapon_id), f_mono, 14, Color(1, 1, 1, 0.4), HORIZONTAL_ALIGNMENT_RIGHT)
-	if Run.heat > 0:
-		_text(Vector2(vs.x - 24, 116), L.t("heat") + " " + str(Run.heat), f_mono, 14, Color(1.0, 0.5, 0.3, 0.7), HORIZONTAL_ALIGNMENT_RIGHT)
-	# Zeit unten links
-	var tr := Rect2(18, vs.y - 46, 150, 30)
-	draw_rect(tr, Color(0, 0, 0, 0.45))
-	_text(Vector2(28, vs.y - 25), UI.fmt_time(Run.time), f_mono, 16, Color(1, 1, 1, 0.8))
-	# Fortschritt
-	if not game.level.get("boss", false):
-		var w := minf(420.0, vs.x * 0.35)
-		var px := vs.x * 0.5 - w * 0.5
-		var prog := clampf(p.global_position.x / maxf(1.0, game.level["length"] - 300.0), 0.0, 1.0)
-		draw_line(Vector2(px, 24), Vector2(px + w, 24), Color(1, 1, 1, 0.15), 2.0)
-		draw_line(Vector2(px, 24), Vector2(px + w * prog, 24), Neon.fade(accent, 0.7), 2.0)
-		for cp in game.checkpoints:
-			var cx: float = px + w * clampf(cp.position.x / maxf(1.0, game.level["length"] - 300.0), 0.0, 1.0)
-			draw_rect(Rect2(cx - 2, 19, 4, 10), Neon.fade(accent, 0.9 if cp.activated else 0.35))
-		draw_circle(Vector2(px + w * prog, 24), 4.0, Neon.hdr(accent, 0.5))
+	_glow_text(Vector2(vs.x - 22, 36), "$" + UI.fmt_num(int(round(shown_credits))), f_ui, 22, Color(1.0, 0.92, 0.7, 0.95), HORIZONTAL_ALIGNMENT_RIGHT)
+	# Leben und Dash unten links
+	var hp_ratio := clampf(p.hp / p.max_hp(), 0.0, 1.0)
+	var hc := Color(0.45, 1.0, 0.75) if hp_ratio > 0.35 else Color(1.0, 0.35, 0.4)
+	var base := Vector2(24, vs.y - 34)
+	draw_rect(Rect2(base, Vector2(160.0 * shown_hp, 6)), Neon.fade(Color(1, 1, 1), 0.25))
+	_glow_bar(base, 160.0, 6.0, hp_ratio, hc)
+	var dk: float = p.dash_ready_ratio()
+	_glow_bar(base + Vector2(0, 14), 64.0, 3.0, dk, accent, dk < 1.0)
+	var ix := base.x + 172.0
+	if Run.stats["shield"] > 0:
+		var sc := accent if p.shield_ready else Color(0.5, 0.5, 0.6, 0.4)
+		Neon.circle(self, Vector2(ix + 4, base.y + 3), 5.0, sc, 1.4, 0.6 if p.shield_ready else 0.0)
+		ix += 18.0
+	for i in Run.revives_left:
+		Neon.dot(self, Vector2(ix + 3, base.y + 3), 2.6, Color(1.0, 0.45, 0.65), 0.8)
+		ix += 12.0
 	# Bossleiste
 	var b = game.boss
 	if is_instance_valid(b) and not b.dead and b.state != "intro":
-		var bw := minf(640.0, vs.x * 0.6)
-		var br := Rect2(vs.x * 0.5 - bw * 0.5, vs.y - 54, bw, 12)
-		draw_rect(br, Color(0.1, 0.05, 0.08, 0.8))
-		draw_rect(Rect2(br.position, Vector2(bw * clampf(b.hp / b.max_hp, 0.0, 1.0), 12)), Neon.hdr(b.col, 0.3))
-		draw_rect(br, Neon.fade(b.col, 0.7), false, 1.5)
-		draw_line(Vector2(br.position.x + bw * 0.5, br.position.y), Vector2(br.position.x + bw * 0.5, br.end.y), Color(0, 0, 0, 0.8), 2.0)
-		_text(Vector2(vs.x * 0.5, br.position.y - 8), L.t("boss_name"), f_mono, 16, Neon.fade(b.col, 0.9), HORIZONTAL_ALIGNMENT_CENTER)
-	# Banner
+		var bw := minf(520.0, vs.x * 0.45)
+		_glow_bar(Vector2(vs.x * 0.5 - bw * 0.5, 30), bw, 5.0, b.hp / b.max_hp, b.col)
+		_glow_text(Vector2(vs.x * 0.5, 22), L.t("boss_name"), f_mono, 14, b.col, HORIZONTAL_ALIGNMENT_CENTER)
+	# Banner (z. B. CHECKPOINT)
 	if banner_t > 0.0:
 		var k := banner_t / banner_dur
 		var a := clampf(minf((1.0 - k) * 8.0, k * 4.0), 0.0, 1.0)
-		var pop := 1.0 + (1.0 - minf((1.0 - k) * 6.0, 1.0)) * 0.3
-		var size := int(46 * pop)
-		_text(Vector2(vs.x * 0.5, vs.y * 0.3), banner_title, f_mono, size, Neon.hdr(Neon.fade(banner_col, a), 0.8), HORIZONTAL_ALIGNMENT_CENTER)
+		var pop := 1.0 + (1.0 - minf((1.0 - k) * 6.0, 1.0)) * 0.25
+		var by := vs.y * 0.17
+		_glow_text(Vector2(vs.x * 0.5, by), banner_title, f_mono, int(30 * pop), Neon.fade(banner_col, a), HORIZONTAL_ALIGNMENT_CENTER)
 		if banner_sub != "":
-			_text(Vector2(vs.x * 0.5, vs.y * 0.3 + 40), banner_sub, f_mono, 22, Neon.fade(Color(1, 1, 1), a * 0.7), HORIZONTAL_ALIGNMENT_CENTER)
+			_glow_text(Vector2(vs.x * 0.5, by + 30), banner_sub, f_mono, 17, Neon.fade(Color(1, 1, 1), a * 0.7), HORIZONTAL_ALIGNMENT_CENTER)
 	# Erfolg-Einblendungen
-	var ty := 140.0
+	var ty := 64.0
 	for t in toasts:
 		var a2 := clampf(minf(t["t"], 4.0 - t["t"]) * 3.0, 0.0, 1.0)
-		var r := Rect2(vs.x - 340, ty, 316, 54)
-		draw_rect(r, Color(0.02, 0.03, 0.06, 0.85 * a2))
-		draw_rect(r, Neon.fade(UI.GOLD, a2 * 0.8), false, 1.5)
-		_text(Vector2(r.position.x + 14, ty + 22), L.t("achievement_unlocked"), f_mono, 13, Neon.fade(UI.GOLD, a2))
-		_text(Vector2(r.position.x + 14, ty + 44), L.t("ach_" + t["id"]), f_ui, 18, Neon.fade(Color(1, 1, 1), a2))
-		ty += 62.0
+		var r := Rect2(vs.x - 330, ty, 308, 50)
+		draw_rect(r, Color(0.0, 0.0, 0.0, 0.75 * a2))
+		draw_rect(r, Neon.fade(UI.GOLD, a2 * 0.6), false, 1.2)
+		_glow_text(Vector2(r.position.x + 12, ty + 20), L.t("achievement_unlocked"), f_mono, 12, Neon.fade(UI.GOLD, a2))
+		_glow_text(Vector2(r.position.x + 12, ty + 40), L.t("ach_" + t["id"]), f_ui, 17, Neon.fade(Color(1, 1, 1), a2))
+		ty += 58.0
 	# Schaden: roter Rand
 	if dmg_flash > 0.0:
-		var a3 := dmg_flash / 0.35 * 0.5
+		var a3 := dmg_flash / 0.35 * 0.28
+		var tw := 50.0
 		var c := Color(1, 0.1, 0.15, a3)
-		var tw := 60.0
-		draw_rect(Rect2(0, 0, vs.x, tw), Color(c.r, c.g, c.b, a3 * 0.6))
-		draw_rect(Rect2(0, vs.y - tw, vs.x, tw), Color(c.r, c.g, c.b, a3 * 0.6))
-		draw_rect(Rect2(0, 0, tw, vs.y), Color(c.r, c.g, c.b, a3 * 0.6))
-		draw_rect(Rect2(vs.x - tw, 0, tw, vs.y), Color(c.r, c.g, c.b, a3 * 0.6))
+		draw_rect(Rect2(0, 0, vs.x, tw), c)
+		draw_rect(Rect2(0, vs.y - tw, vs.x, tw), c)
+		draw_rect(Rect2(0, 0, tw, vs.y), c)
+		draw_rect(Rect2(vs.x - tw, 0, tw, vs.y), c)
 	if hp_ratio < 0.3 and not p.dead:
-		var pulse := 0.12 + 0.08 * sin(Time.get_ticks_msec() * 0.008)
-		draw_rect(Rect2(0, 0, vs.x, 8), Color(1, 0.1, 0.1, pulse))
-		draw_rect(Rect2(0, vs.y - 8, vs.x, 8), Color(1, 0.1, 0.1, pulse))
+		var pulse := 0.1 + 0.07 * sin(Time.get_ticks_msec() * 0.008)
+		draw_rect(Rect2(0, 0, vs.x, 5), Color(1, 0.1, 0.1, pulse))
+		draw_rect(Rect2(0, vs.y - 5, vs.x, 5), Color(1, 0.1, 0.1, pulse))
 	if Save.setting("show_fps"):
-		_text(Vector2(vs.x * 0.5, vs.y - 14), "%d FPS" % Engine.get_frames_per_second(), f_mono, 13, Color(1, 1, 1, 0.5), HORIZONTAL_ALIGNMENT_CENTER)
+		_glow_text(Vector2(vs.x - 22, vs.y - 18), "%d FPS" % Engine.get_frames_per_second(), f_mono, 13, Color(1, 1, 1, 0.45), HORIZONTAL_ALIGNMENT_RIGHT)

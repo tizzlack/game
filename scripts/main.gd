@@ -3,11 +3,13 @@ extends Node
 
 const MainMenu = preload("res://scripts/ui/main_menu.gd")
 const Game = preload("res://scripts/game/game.gd")
+const PostFx = preload("res://scripts/game/post_fx.gd")
 
 var current: Node
 var fade_rect: ColorRect
 var fading := false
 var last_opts: Dictionary = {}
+var post
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -17,20 +19,23 @@ func _ready() -> void:
 	env.background_mode = Environment.BG_CANVAS
 	env.background_canvas_max_layer = 10
 	env.glow_enabled = true
-	env.glow_intensity = 0.9
-	env.glow_strength = 1.0
-	env.glow_bloom = 0.0
-	env.glow_hdr_threshold = 1.0
+	env.glow_intensity = 1.3
+	env.glow_strength = 1.2
+	env.glow_bloom = 0.05
+	env.glow_hdr_threshold = 0.85
+	env.glow_hdr_scale = 2.4
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_ADDITIVE
-	env.set("glow_levels/1", 0.0)
-	env.set("glow_levels/2", 1.0)
+	env.set("glow_levels/1", 0.5)
+	env.set("glow_levels/2", 0.9)
 	env.set("glow_levels/3", 1.0)
-	env.set("glow_levels/4", 0.8)
-	env.set("glow_levels/5", 0.6)
-	env.set("glow_levels/6", 0.0)
+	env.set("glow_levels/4", 1.0)
+	env.set("glow_levels/5", 0.9)
+	env.set("glow_levels/6", 0.7)
 	env.set("glow_levels/7", 0.0)
 	we.environment = env
 	add_child(we)
+	post = PostFx.new()
+	add_child(post)
 	var fl := CanvasLayer.new()
 	fl.layer = 100
 	add_child(fl)

@@ -2,7 +2,7 @@
 extends RefCounted
 
 const BASE_Y := 520.0
-const MIN_Y := BASE_Y - 300.0
+const MIN_Y := BASE_Y - 560.0
 const MAX_Y := BASE_Y + 150.0
 const BOTTOM := BASE_Y + 1500.0
 const KILL_Y := BASE_Y + 520.0
@@ -48,20 +48,24 @@ func _start_piece() -> void:
 	cur = PackedVector2Array()
 	cur.append(Vector2(x, y))
 
-func _flat(len: float, bump: float = 9.0) -> void:
+# Raues Felsgelände: viele kurze Stücke mit Rauschen, aber nie steiler als ~44° (bleibt begehbar)
+func _rough(len: float, dy: float, noise: float = 6.0) -> void:
+	var sx := x
+	var sy := y
+	var ty := clampf(y + dy, MIN_Y, MAX_Y)
 	var end_x := x + len
 	while x < end_x - 1.0:
-		var step := minf(rng.randf_range(70.0, 140.0), end_x - x)
-		_pt(x + step, clampf(y + rng.randf_range(-bump, bump), MIN_Y, MAX_Y))
+		var step := minf(rng.randf_range(16.0, 42.0), end_x - x)
+		var t := clampf((x + step - sx) / maxf(len, 1.0), 0.0, 1.0)
+		var want := lerpf(sy, ty, t) + rng.randf_range(-noise, noise)
+		var maxd := step * 0.95
+		_pt(x + step, clampf(clampf(want, y - maxd, y + maxd), MIN_Y, MAX_Y))
+
+func _flat(len: float, bump: float = 9.0) -> void:
+	_rough(len, 0.0, bump * 0.7)
 
 func _slope(len: float, dy: float) -> void:
-	var target := clampf(y + dy, MIN_Y, MAX_Y)
-	var start_y := y
-	var n := rng.randi_range(2, 4)
-	var start_x := x
-	for i in range(1, n + 1):
-		var t := float(i) / n
-		_pt(start_x + len * t, lerpf(start_y, target, t) + (rng.randf_range(-8, 8) if i < n else 0.0))
+	_rough(len, dy, 5.0)
 
 func _step(dy: float) -> void:
 	var ny := clampf(y + dy, MIN_Y, MAX_Y)
@@ -150,6 +154,8 @@ func _level(length: float, tutorial: bool) -> void:
 			"platforms": _chunk_platforms()
 			"boxes": _chunk_boxes()
 			"arena": _chunk_arena()
+			"mountain": _chunk_mountain()
+			"canyon": _chunk_canyon()
 	_flat(300.0, 3.0)
 	var gx := x + 120.0
 	_flat(600.0, 0.0)
@@ -160,8 +166,8 @@ func _level(length: float, tutorial: bool) -> void:
 	out["length"] = x
 
 func _pick_chunk(last: String) -> String:
-	var opts := {"flat": 1.0, "hill": 1.2, "steps": 1.0, "gap": 1.1, "bridge": 0.8, "rooftops": 0.9,
-		"platforms": 1.1, "boxes": 0.9, "arena": 0.5 + d * 0.15}
+	var opts := {"flat": 0.5, "hill": 1.0, "mountain": 1.6, "canyon": 1.1, "steps": 1.0, "gap": 0.9, "bridge": 0.7,
+		"rooftops": 0.9, "platforms": 0.8, "boxes": 0.6, "arena": 0.4 + d * 0.15}
 	opts.erase(last)
 	var total := 0.0
 	for v in opts.values():
@@ -193,6 +199,79 @@ func _tutorial() -> void:
 	out["hints"].append({"pos": Vector2(x - 200, gy - 330), "key": "hint_drop"})
 	_spawn("gunner", Vector2(x - 190.0, gy - 270.0))
 
+# Steiler, zerklüfteter Berg: Hänge und kleine Klippen hinauf, Plateau, steiler Abstieg
+func _chunk_mountain() -> void:
+	var start := x
+	var start_y := y
+	var up := minf(rng.randf_range(220.0, 440.0), y - MIN_Y)
+	if up < 140.0:
+		_chunk_canyon()
+		return
+	var guard := 0
+	while start_y - y < up - 25.0 and guard < 20:
+		guard += 1
+		var left := up - (start_y - y)
+		if rng.randf() < 0.3:
+			_step(-minf(rng.randf_range(50.0, 95.0), left))
+			_rough(rng.randf_range(40.0, 110.0), -rng.randf_range(0.0, 12.0), 4.0)
+		else:
+			var dyc := minf(rng.randf_range(60.0, 150.0), left)
+			_rough(dyc / rng.randf_range(0.6, 0.92), -dyc, 6.0)
+	var peak_a := x
+	_rough(rng.randf_range(160.0, 320.0), rng.randf_range(-20.0, 20.0), 7.0)
+	var peak_b := x
+	var peak_mid := (peak_a + peak_b) * 0.5
+	out["decor"].append({"kind": "tower", "pos": Vector2(peak_mid, ground_y_at(peak_mid))})
+	_coin_arc(peak_a + 20.0, peak_b - 20.0, ground_y_at(peak_mid) - 50.0, 40.0, 6)
+	if rng.randf() < 0.6 + d * 0.1:
+		_spawn(_high_kind(), Vector2(peak_mid + rng.randf_range(-40.0, 40.0), ground_y_at(peak_mid) - 34.0))
+	var down := clampf(up * rng.randf_range(0.6, 1.15), 0.0, MAX_Y - y)
+	var target := y + down
+	guard = 0
+	while y < target - 25.0 and guard < 20:
+		guard += 1
+		var left := target - y
+		if rng.randf() < 0.35:
+			_step(minf(rng.randf_range(60.0, 180.0), left))
+			_rough(rng.randf_range(40.0, 100.0), rng.randf_range(0.0, 12.0), 4.0)
+		else:
+			var dyc := minf(rng.randf_range(60.0, 150.0), left)
+			_rough(dyc / rng.randf_range(0.6, 0.92), dyc, 6.0)
+	_rough(rng.randf_range(120.0, 220.0), 0.0, 5.0)
+	for i in _count(1.0):
+		_spawn_ground(_ground_kind(), rng.randf_range(start + 80.0, x - 40.0))
+
+# Schlucht: hinab ins Tal, Kampf am Boden, über Stufen wieder hinauf
+func _chunk_canyon() -> void:
+	var start := x
+	var down := minf(rng.randf_range(140.0, 280.0), MAX_Y - y)
+	if down < 80.0:
+		_rough(rng.randf_range(300.0, 500.0), -rng.randf_range(80.0, 160.0), 6.0)
+		return
+	if rng.randf() < 0.5:
+		_step(down * 0.6)
+		_rough(down * 0.4 / 0.8, down * 0.4, 5.0)
+	else:
+		_rough(down / 0.85, down, 6.0)
+	var floor_a := x
+	_rough(rng.randf_range(300.0, 520.0), rng.randf_range(-20.0, 20.0), 6.0)
+	var floor_b := x
+	for i in _count(1.3):
+		_spawn_ground(_ground_kind(), rng.randf_range(floor_a + 60.0, floor_b - 40.0))
+	_coin_line(floor_a + 60.0, floor_a + 220.0, ground_y_at(floor_a + 140.0) - 40.0, 5)
+	var climb := minf(down * rng.randf_range(0.7, 1.2), y - MIN_Y)
+	var climbed := 0.0
+	var guard := 0
+	while climbed < climb - 20.0 and guard < 12:
+		guard += 1
+		var h := minf(rng.randf_range(55.0, 95.0), climb - climbed)
+		_step(-h)
+		climbed += h
+		_rough(rng.randf_range(60.0, 140.0), -rng.randf_range(0.0, 10.0), 4.0)
+	if rng.randf() < 0.5:
+		_spawn("drone", Vector2((floor_a + floor_b) * 0.5, ground_y_at(floor_a) - 220.0))
+	_rough(rng.randf_range(100.0, 200.0), 0.0, 5.0)
+
 func _chunk_flat() -> void:
 	var start := x
 	_flat(rng.randf_range(450.0, 800.0))
@@ -200,8 +279,9 @@ func _chunk_flat() -> void:
 		_spawn_ground(_ground_kind(), rng.randf_range(start + 100.0, x - 40.0))
 	if rng.randf() < 0.5:
 		_coin_line(start + 80.0, start + 260.0, ground_y_at(start + 170.0) - 40.0, 5)
-	if rng.randf() < 0.4:
-		out["decor"].append({"kind": "antenna", "pos": Vector2(start + 60.0, ground_y_at(start + 60.0))})
+	if rng.randf() < 0.55:
+		var dx := rng.randf_range(start + 60.0, x - 60.0)
+		out["decor"].append({"kind": "tower", "pos": Vector2(dx, ground_y_at(dx))})
 
 func _chunk_hill() -> void:
 	var start := x

@@ -60,5 +60,7 @@ func _draw() -> void:
 		c = Color(1.8, 1.8, 1.8)
 	var p := Figure.pose(phase, absf(velocity.x) / 160.0, facing, is_on_floor(), Vector2(facing, 0), 0.0, velocity.y, 0.0, 1.42)
 	Figure.draw(self, p, c, 3.2, 1.0)
+	last_pose = p
+	draw_visor(p, Vector2(facing, 0), Color(1.0, 0.85, 0.9))
 	# Schulterpanzer
 	Neon.line(self, Vector2(-12, -20), Vector2(12, -20), c, 3.0)
