@@ -25,6 +25,27 @@
 6. **Politur:** Sounds/Musik, Screen-Shake, Nachbilder, Bossgegner, Erfolge
 7. **Steam:** Windows-Export, GodotSteam, Erfolge, Cloud-Saves, Store-Seite, Demo
 
+## Bindung ("noch ein Run") und Verdienst – Design-Ergänzung
+**Kernidee:** Roguelite-Loop statt fixer Level. Kurze Runs (5–10 Min), nach Tod oder Sieg bleibt Fortschritt erhalten.
+
+Bindung durch gutes Design:
+- **Roguelite-Runs:** zufällig erzeugte Abschnitte, nach jedem Abschnitt Wahl aus 3 Upgrades (Build-Vielfalt, Synergien)
+- **Meta-Fortschritt:** Geld aus Runs kauft dauerhafte Upgrades, neue Waffen, neue Charaktere
+- **Spielgefühl:** sehr direkte Steuerung, Treffer-Feedback, Kombo-Zähler, Screen-Shake, Soundtreppen bei Serien
+- **Ziele:** tägliche Herausforderung mit Bestenliste, Missionen, Erfolge, Freischaltungen
+- **Flow:** Neustart in unter 2 Sekunden, kein Ladebildschirm
+- **Schwierigkeit:** faire Kurve, Tod soll sich nach eigenem Fehler anfühlen, Hilfsoptionen
+- **Wiederspielwert:** Endlos-Modus, Mutatoren (Run-Modifikatoren), Seeds zum Teilen
+
+Verdienst (fair, Steam-tauglich):
+- **Einmalkauf** 5–10 $, kein Pay-to-Win, keine Lootboxen
+- **Kostenlose Demo** plus Wunschlisten sammeln (wichtigster Hebel auf Steam)
+- **DLC** später: neue Charaktere, Welten, Soundtrack
+- **Updates** nach Launch, Community pflegen (Discord), Trailer und Kurzvideos für TikTok/YouTube
+- **Streamer-Tauglichkeit:** Seeds, Daily Run, übersichtliche Effekte
+
+Hinweis: Keine Garantie auf Einnahmen. Die meisten Steam-Spiele verdienen wenig, Erfolg hängt stark von Qualität und Marketing ab.
+
 ## Hinweis zum Geld
 Verdienst auf Steam hängt von Qualität, Marketing und Wunschlisten ab. Es gibt keine Garantie auf Einnahmen.
 
@@ -50,6 +71,16 @@ Du bist ein erfahrener Godot-4-Entwickler (GDScript). Baue in diesem Repository 
 - Level enden an der Lichtsäule. Mindestens 3 Level in Phase 1–4.
 - Shop zwischen Levels: Waffenschaden, Feuerrate, Leben, Tempo. Preise steigen exponentiell.
 - Speicherstand in `user://save.json`.
+
+### Bindung und Progression (neu, wichtig)
+- Roguelite-Aufbau: Run = 5–10 Minuten, prozedural zusammengesetzte Abschnitte aus handgebauten Bausteinen.
+- Nach jedem Abschnitt Auswahl aus 3 zufälligen Upgrades (mit Synergien, Seltenheit, Build-Vielfalt).
+- Dauerhafter Meta-Fortschritt: Geld aus Runs kauft Waffen, Charaktere und Passiv-Upgrades (Preise steigen exponentiell).
+- Kombo-System mit Multiplikator, Soundtreppe und Effekten bei Serien.
+- Tägliche Herausforderung mit festem Seed und lokaler Bestenliste (später Steam-Leaderboard), Missionen, Erfolge, Mutatoren.
+- Neustart nach Tod in unter 2 Sekunden, keine Ladebildschirme.
+- Faire Schwierigkeit mit Hilfsoptionen, keine Pay-to-Win-Mechanik, keine Lootboxen, keine künstlichen Wartezeiten.
+- Spiel soll sich für Streamer gut lesen lassen (klare Effekte, Seeds zum Teilen).
 
 ### HUD
 - Oben links Punktzahl (große, leicht transparente Neonschrift), oben rechts Geld, unten links Zeit, Gesundheit als Neonleiste.
