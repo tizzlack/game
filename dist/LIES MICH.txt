@@ -1,0 +1,28 @@
+GLOWLINE – Neon Run & Gun
+=========================
+
+STARTEN
+1. Steam starten und einloggen (wichtig für Online-Multiplayer).
+2. Glowline.exe doppelklicken.
+   Falls Windows "Der Computer wurde durch Windows geschützt" zeigt:
+   "Weitere Informationen" -> "Trotzdem ausführen" (das Spiel ist nicht signiert).
+3. Zuerst das TUTORIAL spielen.
+
+MIT EINEM FREUND SPIELEN (über Steam)
+- Beide: Steam läuft, Glowline.exe gestartet.
+- Spieler 1: MULTIPLAYER -> Modus wählen (KOOP oder VERSUS) -> LOBBY ERSTELLEN.
+  Es erscheint ein Code (z. B. QX7K2M) -> KOPIEREN und dem Freund schicken.
+- Spieler 2: MULTIPLAYER -> Code eingeben -> BEITRETEN.
+- Spieler 2: BEREIT MACHEN, dann drückt Spieler 1 START.
+Hinweis: In Steam wird während des Spielens "Spacewar" angezeigt. Das ist normal –
+das ist Valves Test-App, über die das Spiel bis zur eigenen Steam-Veröffentlichung läuft.
+Einladungen über die Steam-Freundesliste funktionieren nur, wenn das Spiel beim Freund schon läuft;
+am zuverlässigsten ist der Code.
+
+Die Datei steam_appid.txt muss neben Glowline.exe liegen bleiben.
+
+STEUERUNG
+Tastatur/Maus: A/D laufen, Leertaste springen (an Wänden: Walljump), S beim Laufen rutschen,
+Maus zielen, Linksklick schießen, Shift Dash, in der Luft S+Shift Ground-Slam, Esc Pause.
+Controller: L-Stick laufen, A springen, R-Stick zielen, RT schießen, B Dash,
+Stick runter + B in der Luft Slam, Start Pause.

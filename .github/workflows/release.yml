@@ -1,0 +1,76 @@
+name: Release (Windows-Build)
+
+# Baut das Spiel mit Godot und veröffentlicht die Windows-ZIP als GitHub-Release.
+# Läuft bei jedem Push auf den Entwicklungs-Branch (außer reinen Doku-Änderungen) oder manuell.
+on:
+  push:
+    branches: ["claude/optimistic-noether-dq5njr"]
+    paths-ignore: ["**.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: "4.4.1"
+
+jobs:
+  windows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Godot und Export-Vorlagen laden
+        run: |
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q "Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot
+          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          T="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$T"
+          unzip -q -j "Godot_v${GODOT_VERSION}-stable_export_templates.tpz" \
+            templates/windows_release_x86_64.exe templates/windows_debug_x86_64.exe templates/version.txt -d "$T"
+          rm "Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+
+      - name: Projekt importieren
+        run: ./godot --headless --path . --import || true
+
+      - name: Windows exportieren
+        run: |
+          mkdir -p build/windows
+          ./godot --headless --path . --export-release "Windows" build/windows/Glowline.exe
+          test -f build/windows/Glowline.exe
+          test -f build/windows/steam_api64.dll
+          cp steam_appid.txt "dist/LIES MICH.txt" build/windows/
+          ls -la build/windows
+
+      - name: ZIP packen
+        run: |
+          mkdir -p pkg
+          cp -r build/windows pkg/GLOWLINE
+          cd pkg && zip -q -r -9 ../GLOWLINE-Windows.zip GLOWLINE
+
+      - name: Release veröffentlichen
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: GLOWLINE 1.0.${{ github.run_number }} (Windows)
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          files: GLOWLINE-Windows.zip
+          body: |
+            **GLOWLINE – Neon Run & Gun** für Windows, mit Steam-Multiplayer.
+
+            1. `GLOWLINE-Windows.zip` herunterladen und entpacken.
+            2. Steam starten und einloggen.
+            3. `Glowline.exe` starten (bei der Windows-Warnung: „Weitere Informationen“ → „Trotzdem ausführen“).
+
+            **Mit einem Freund spielen:** MULTIPLAYER → LOBBY ERSTELLEN → Code an den Freund schicken →
+            der Freund gibt den Code unter MULTIPLAYER ein → BEREIT → START.
+            In Steam wird dabei „Spacewar“ angezeigt (Valves Test-App) – das ist normal.
+
+            Details stehen in `LIES MICH.txt` im ZIP.
