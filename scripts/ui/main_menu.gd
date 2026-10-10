@@ -17,7 +17,7 @@ var sel_heat := 0
 var sel_mutators: Array = []
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	theme = UI.theme()
 	var bgl := CanvasLayer.new()
 	bgl.layer = -10
@@ -41,7 +41,7 @@ func _clear() -> void:
 	if content:
 		content.queue_free()
 	content = Control.new()
-	content.set_anchors_preset(Control.PRESET_FULL_RECT)
+	content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(content)
 
 func _focus_first(c: Control) -> void:
@@ -79,15 +79,16 @@ func show_home() -> void:
 	var left := UI.vbox(12)
 	left.set_anchors_preset(Control.PRESET_CENTER_LEFT)
 	left.offset_left = 90
-	left.offset_top = -250
-	left.offset_right = 520
+	left.offset_top = -300
+	left.offset_right = 500
 	left.offset_bottom = 300
-	var t := UI.title("GLOWLINE", 92, Color(0.5, 0.9, 1.0))
+	left.add_theme_constant_override("separation", 9)
+	var t := UI.title("GLOWLINE", 80, Color(0.5, 0.9, 1.0))
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	left.add_child(t)
 	var sub := UI.label(L.t("tagline"), 20, Color(1.0, 0.45, 0.6), "mono")
 	left.add_child(sub)
-	left.add_child(UI.spacer(26))
+	left.add_child(UI.spacer(14))
 	var play := UI.button(L.t("play"), show_setup)
 	left.add_child(play)
 	var daily := UI.button(L.t("daily") + _daily_suffix(), _start_daily)
@@ -326,7 +327,7 @@ func show_achievements() -> void:
 	var p := UI.panel()
 	var v := UI.vbox(10)
 	p.add_child(v)
-	var got := Save.data["achievements"].size()
+	var got: int = Save.data["achievements"].size()
 	_header(v, L.t("achievements") + "  %d/%d" % [got, Data.ACH_ORDER.size()])
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size = Vector2(860, 480)

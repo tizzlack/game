@@ -12,12 +12,12 @@ var box: VBoxContainer
 var sub: Control
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	theme = UI.theme()
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	var dim := ColorRect.new()
 	dim.color = Color(0, 0, 0, 0.65)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
 	box = UI.vbox(14)
 	box.add_child(UI.title(L.t("paused"), 56))

@@ -114,7 +114,7 @@ func take_damage(amount: float, dir: Vector2 = Vector2.ZERO, crit: bool = false)
 	if dead:
 		return
 	hp -= amount
-	flash = 0.09
+	flash = 0.06
 	if dir != Vector2.ZERO and knock_resist < 1.0:
 		velocity += dir * 90.0 * (1.0 - knock_resist)
 	game.fx.number(global_position + Vector2(randf_range(-8, 8), -shape_size.y * 0.5), amount, crit)
@@ -147,7 +147,7 @@ func shoot(target: Vector2, bullet_speed: float, spread_deg: float = 0.0, count:
 
 func draw_color() -> Color:
 	if flash > 0.0:
-		return Color(1.6, 1.6, 1.6)
+		return col.lerp(Color(1.4, 1.4, 1.4), 0.55)
 	return col
 
 # Zielhilfe-Linie vor einem Schuss

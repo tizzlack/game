@@ -14,12 +14,12 @@ var done := false
 var t := 0.0
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	theme = UI.theme()
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	var dim := ColorRect.new()
 	dim.color = Color(0, 0, 0, 0.72)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
 	var v := UI.vbox(22)
 	v.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -89,7 +89,7 @@ func _card(id: String, idx: int) -> Button:
 	for st in ["hover", "pressed", "focus", "hover_pressed"]:
 		b.add_theme_stylebox_override(st, hover)
 	var v := UI.vbox(10)
-	v.set_anchors_preset(Control.PRESET_FULL_RECT)
+	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	v.offset_left = 18
 	v.offset_right = -18
 	v.offset_top = 18

@@ -123,7 +123,7 @@ func _physics_process(delta: float) -> void:
 					dash_hits.append(e)
 					e.take_damage(s["dash_dmg"] * s["dmg_mult"], Vector2(dash_dir, -0.3).normalized(), false)
 	else:
-		var target := input_x * RUN_SPEED * s["move_mult"]
+		var target: float = input_x * RUN_SPEED * s["move_mult"]
 		var accel := ACCEL_GROUND if on_floor else ACCEL_AIR
 		if absf(input_x) < 0.1 and on_floor:
 			accel = FRICTION
@@ -231,7 +231,7 @@ func _shoot() -> void:
 			ang += deg_to_rad((i - (count - 1) * 0.5) * 7.0) + deg_to_rad(randf_range(-spread, spread) * 0.5)
 		else:
 			ang += deg_to_rad(randf_range(-spread, spread))
-		var crit := randf() < s["crit"]
+		var crit: bool = randf() < s["crit"]
 		game.bullets.spawn_player(origin, Vector2.from_angle(ang) * speed * randf_range(0.94, 1.06), weapon, crit)
 	game.fx.muzzle(origin, aim, weapon["color"])
 	Sfx.play(weapon["sfx"], -7.0)

@@ -12,7 +12,7 @@ static var _fonts := {}
 
 static func font(kind: String) -> Font:
 	if not _fonts.has(kind):
-		var path := {"ui": "res://assets/fonts/UIFont.otf", "title": "res://assets/fonts/TitleFont.otf", "mono": "res://assets/fonts/MonoFont.ttf"}[kind]
+		var path: String = {"ui": "res://assets/fonts/UIFont.otf", "title": "res://assets/fonts/TitleFont.otf", "mono": "res://assets/fonts/MonoFont.ttf"}[kind]
 		_fonts[kind] = load(path)
 	return _fonts[kind]
 
@@ -146,19 +146,19 @@ static func spacer(h: float) -> Control:
 # Vollbild-Wurzel für ein Menü, mit abgedunkeltem Hintergrund
 static func root(dim: float = 0.0) -> Control:
 	var c := Control.new()
-	c.set_anchors_preset(Control.PRESET_FULL_RECT)
+	c.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	c.theme = theme()
 	if dim > 0.0:
 		var r := ColorRect.new()
 		r.color = Color(0, 0, 0, dim)
-		r.set_anchors_preset(Control.PRESET_FULL_RECT)
+		r.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		r.mouse_filter = Control.MOUSE_FILTER_STOP
 		c.add_child(r)
 	return c
 
 static func center(child: Control) -> CenterContainer:
 	var cc := CenterContainer.new()
-	cc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	cc.add_child(child)
 	return cc
 
@@ -177,5 +177,5 @@ static func fmt_num(v: int) -> String:
 		out = s[i] + out
 		n += 1
 		if n % 3 == 0 and i > 0:
-			out = "." + out
+			out = ("." if L.lang == "de" else ",") + out
 	return ("-" if v < 0 else "") + out

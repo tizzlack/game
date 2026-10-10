@@ -13,12 +13,12 @@ var victory_pending := false
 var first_btn: Button
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	theme = UI.theme()
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	var dim := ColorRect.new()
 	dim.color = Color(0, 0, 0, 0.75)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
 	var v := UI.vbox(12)
 	if victory_pending:

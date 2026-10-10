@@ -2,7 +2,7 @@
 extends Node
 
 const Data = preload("res://scripts/core/data.gd")
-const PATH := "user://save.json"
+var PATH := "user://save.json"
 const VERSION := 1
 
 signal achievement_unlocked(id: String)
@@ -11,6 +11,8 @@ signal bank_changed
 var data: Dictionary = {}
 
 func _ready() -> void:
+	if "--autotest" in OS.get_cmdline_user_args():
+		PATH = "user://save_autotest.json"
 	load_data()
 	apply_settings()
 

@@ -22,7 +22,7 @@ var f_mono: Font
 var f_ui: Font
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	f_title = UI.font("title")
 	f_mono = UI.font("mono")

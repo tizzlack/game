@@ -525,7 +525,7 @@ func _on_player_died() -> void:
 		set_slowmo(1.0)
 		if not is_inside_tree():
 			return
-		var at := last_checkpoint if not Run.is_boss() else level["start"]
+		var at: Vector2 = last_checkpoint if not Run.is_boss() else level["start"]
 		player.revive(at, 0.5)
 		cam_pos = at
 		hud.banner(L.t("second_chance"), "", pal["accent"], 1.5)
