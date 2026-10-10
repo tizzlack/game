@@ -112,6 +112,24 @@ func dash_ready_ratio() -> float:
 func is_dodging() -> bool:
 	return dash_t > 0.0 or slamming
 
+# Sprungfeld: weit nach oben schleudern, Dash und Doppelsprung auffrischen
+func launch(power: float) -> void:
+	velocity.y = -power
+	slamming = false
+	dash_t = 0.0
+	dash_charges = 1
+	air_jumps_left = Run.stats["air_jumps"]
+	coyote_t = 0.0
+	spin_t = SPIN_TIME
+	spin_dir = facing
+	_end_slide_silent()
+	Sfx.play("jump", -4.0, 0.75)
+	Sfx.play("dash", -8.0, 1.3)
+	game.fx.ring(global_position + Vector2(0, 24), color, 60.0, 0.4)
+	game.fx.sparks(global_position + Vector2(0, 26), color, 14, 500.0, Vector2.UP, 0.5)
+	game.shake(0.2)
+	game.rumble(0.4, 0.12)
+
 func on_kill() -> void:
 	# Abschüsse laden Luft-Dash und Doppelsprung wieder auf -> Kombos in der Luft
 	dash_charges = 1
@@ -202,8 +220,13 @@ func _move_step(delta: float, s: Dictionary, input_x: float, down: bool, on_floo
 	var run: float = RUN_SPEED * s["move_mult"]
 	var target := input_x * run
 	if slide_t > 0.0:
-		# Rutschen: kaum Reibung, Richtung bleibt
-		velocity.x = move_toward(velocity.x, slide_dir * run * 0.6, 520.0 * delta)
+		# Rutschen: kaum Reibung; bergab wird man schneller und rutscht weiter
+		var n := get_floor_normal() if on_floor else Vector2.UP
+		if on_floor and signf(n.x) == slide_dir and absf(n.x) > 0.12:
+			velocity.x = clampf(velocity.x + slide_dir * 1700.0 * absf(n.x) * delta, -MAX_SPEED, MAX_SPEED)
+			slide_t = maxf(slide_t, 0.12)
+		else:
+			velocity.x = move_toward(velocity.x, slide_dir * run * 0.6, 520.0 * delta)
 	else:
 		var accel := ACCEL_GROUND if on_floor else ACCEL_AIR
 		if wall_lock_t > 0.0:
@@ -392,7 +415,8 @@ func _land(pre_vel: Vector2) -> void:
 		var dmg: float = 40.0 * Run.stats["dmg_mult"] + Run.stats["dash_dmg"]
 		for e in game.enemies_near(global_position + Vector2(0, 20), 130.0):
 			e.take_damage(dmg, (e.global_position - global_position).normalized() + Vector2(0, -0.8), false)
-		game.carve(global_position + Vector2(0, 30), 26.0, Vector2.UP)
+		if not game.slam_break(global_position + Vector2(0, 30)):
+			game.carve(global_position + Vector2(0, 30), 26.0, Vector2.UP)
 		game.fx.shockwave(global_position + Vector2(0, 26), color, 160.0)
 		game.fx.ring(global_position + Vector2(0, 26), color, 120.0, 0.35)
 		game.fx.sparks(global_position + Vector2(0, 26), color, 24, 600.0, Vector2.UP, 1.2)

@@ -12,6 +12,7 @@ var top_y := 0.0
 var bbox := Rect2()
 var seed_value := 0
 var destructible := true
+var broken := false
 var carve_floor := INF  # unterhalb dieser Höhe wird nicht mehr ausgestanzt
 
 func setup(k: String, poly: PackedVector2Array, palette: Dictionary, s: int, seam_xs: Array = []) -> void:
@@ -200,6 +201,8 @@ func _is_seam(a: Vector2, b: Vector2) -> bool:
 	return false
 
 func edge_color(a: Vector2, b: Vector2) -> Color:
+	if kind == "weak":
+		return pal["ledge"].lerp(Color(1, 0.85, 0.5), 0.35)
 	var top: Color = pal["ground"] if kind == "ground" else pal["building"].lerp(Color.WHITE, 0.55)
 	var side: Color = pal["building"] if kind != "box" else pal["ledge"]
 	if kind == "box":
@@ -213,6 +216,9 @@ func _draw() -> void:
 	for p in polys:
 		if Geometry2D.triangulate_polygon(p).size() > 0:
 			draw_colored_polygon(p, Color(fill.r, fill.g, fill.b, 1.0))
+	if kind == "weak":
+		_draw_weak()
+		return
 	var fade_from := top_y + 220.0
 	for p in polys:
 		var n: int = p.size()
@@ -233,3 +239,32 @@ func _draw() -> void:
 				Neon.polyline(self, Neon.jagged(PackedVector2Array([a, b]), rng, 6.0, 2.0), c, 2.4, 1.0)
 			else:
 				Neon.line(self, a, b, c, 2.4, 1.0)
+
+# Brüchiger Boden: gestrichelte, flackernde Kante mit Rissen
+func _draw_weak() -> void:
+	var c := edge_color(Vector2.ZERO, Vector2.RIGHT)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value
+	for p in polys:
+		var n: int = p.size()
+		for i in n:
+			var a: Vector2 = p[i]
+			var b: Vector2 = p[(i + 1) % n]
+			var len := a.distance_to(b)
+			var steps := maxi(1, int(len / 14.0))
+			for k in steps:
+				if k % 2 == 1:
+					continue
+				var t0 := float(k) / steps
+				var t1 := minf(1.0, (k + 0.8) / steps)
+				Neon.line(self, a.lerp(b, t0), a.lerp(b, t1), c, 2.0, 0.8)
+	# Risse
+	var r := bbox
+	for i in int(r.size.x / 40.0):
+		var px := r.position.x + 20.0 + i * 40.0 + rng.randf_range(-8, 8)
+		if not contains(Vector2(px, r.position.y + 8.0)):
+			continue
+		var p0 := Vector2(px, r.position.y + 3.0)
+		var p1 := p0 + Vector2(rng.randf_range(-8, 8), 9.0)
+		var p2 := p1 + Vector2(rng.randf_range(-8, 8), 9.0)
+		draw_polyline(PackedVector2Array([p0, p1, p2]), Neon.fade(c, 0.45), 1.2)

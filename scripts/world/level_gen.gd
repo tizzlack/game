@@ -14,13 +14,15 @@ var cur := PackedVector2Array()
 var x := 0.0
 var y := BASE_Y
 var enemy_mult := 1.0
+var signs := false  # kleine Lernschilder an Movement-Stellen (nur erste Welt)
 
 func generate(seed_value: int, diff: float, length: float, boss: bool, tutorial: bool, enemy_count: float = 1.0) -> Dictionary:
 	rng.seed = seed_value
 	d = diff
+	signs = diff < 1.0
 	enemy_mult = enemy_count
 	out = {"ground": [], "blocks": [], "ledges": [], "spawns": [], "coins": [], "checkpoints": [], "hints": [],
-		"decor": [], "goal": Vector2.ZERO, "length": 0.0, "boss": boss, "boss_pos": Vector2.ZERO, "start": Vector2(80, BASE_Y - 40),
+		"decor": [], "pads": [], "goal": Vector2.ZERO, "length": 0.0, "boss": boss, "boss_pos": Vector2.ZERO, "start": Vector2(80, BASE_Y - 40),
 		"bottom": BOTTOM, "kill_y": KILL_Y, "arena": Rect2()}
 	cur = PackedVector2Array()
 	x = -420.0
@@ -39,7 +41,7 @@ func generate_versus(seed_value: int) -> Dictionary:
 	d = 1.0
 	enemy_mult = 0.0
 	out = {"ground": [], "blocks": [], "ledges": [], "spawns": [], "coins": [], "checkpoints": [], "hints": [],
-		"decor": [], "goal": Vector2.ZERO, "length": 0.0, "boss": false, "boss_pos": Vector2.ZERO, "start": Vector2(80, BASE_Y - 40),
+		"decor": [], "pads": [], "goal": Vector2.ZERO, "length": 0.0, "boss": false, "boss_pos": Vector2.ZERO, "start": Vector2(80, BASE_Y - 40),
 		"bottom": BOTTOM, "kill_y": KILL_Y, "arena": Rect2(), "pvp_spawns": []}
 	cur = PackedVector2Array()
 	x = -420.0
@@ -47,15 +49,18 @@ func generate_versus(seed_value: int) -> Dictionary:
 	_pt(x, y)
 	out["blocks"].append({"rect": Rect2(-480, BASE_Y - 1200, 60, 1200 + 1500), "kind": "wall"})
 	_flat(500.0, 4.0)
-	var plan := ["mountain", "platforms", "canyon", "boxes", "hill", "steps"]
-	for i in 4:
+	var plan := ["mountain", "platforms", "canyon", "shaft", "pad_cliff", "pillars", "tunnel", "downhill", "boxes"]
+	for i in 5:
 		match plan[rng.randi() % plan.size()]:
 			"mountain": _chunk_mountain()
 			"platforms": _chunk_platforms()
 			"canyon": _chunk_canyon()
 			"boxes": _chunk_boxes()
-			"hill": _chunk_hill()
-			"steps": _chunk_steps()
+			"shaft": _chunk_shaft()
+			"pad_cliff": _chunk_pad_cliff()
+			"pillars": _chunk_pillars()
+			"tunnel": _chunk_tunnel()
+			"downhill": _chunk_downhill()
 	_flat(400.0, 4.0)
 	_end_piece()
 	_block(Rect2(x - 20.0, y - 1200.0, 60.0, 1200.0 + 1500.0), "wall")
@@ -193,6 +198,14 @@ func _level(length: float, tutorial: bool) -> void:
 			"arena": _chunk_arena()
 			"mountain": _chunk_mountain()
 			"canyon": _chunk_canyon()
+			"shaft": _chunk_shaft()
+			"tunnel": _chunk_tunnel()
+			"dash_gap": _chunk_dash_gap()
+			"pad_cliff": _chunk_pad_cliff()
+			"pad_gap": _chunk_pad_gap()
+			"downhill": _chunk_downhill()
+			"pillars": _chunk_pillars()
+			"weak": _chunk_weak()
 	_flat(300.0, 3.0)
 	var gx := x + 120.0
 	_flat(600.0, 0.0)
@@ -202,9 +215,17 @@ func _level(length: float, tutorial: bool) -> void:
 	_block(Rect2(x - 20.0, y - 1200.0, 60.0, 1200.0 + 1500.0), "wall")
 	out["length"] = x
 
+static var force_plan: Array = []  # nur für Tests: feste Baustein-Reihenfolge
+var _force_i := 0
+
 func _pick_chunk(last: String) -> String:
-	var opts := {"flat": 0.5, "hill": 1.0, "mountain": 1.6, "canyon": 1.1, "steps": 1.0, "gap": 0.9, "bridge": 0.7,
-		"rooftops": 0.9, "platforms": 0.8, "boxes": 0.6, "arena": 0.4 + d * 0.15}
+	if not force_plan.is_empty():
+		_force_i += 1
+		return force_plan[(_force_i - 1) % force_plan.size()]
+	var opts := {"flat": 0.2, "hill": 0.6, "mountain": 1.1, "canyon": 0.7, "steps": 0.5, "gap": 0.4, "bridge": 0.4,
+		"rooftops": 0.6, "platforms": 0.6, "boxes": 0.3, "arena": 0.4 + d * 0.15,
+		"shaft": 0.9, "tunnel": 0.7, "dash_gap": 0.7, "pad_cliff": 0.8, "pad_gap": 0.6, "downhill": 0.8,
+		"pillars": 0.7, "weak": 0.5}
 	opts.erase(last)
 	var total := 0.0
 	for v in opts.values():
@@ -459,6 +480,8 @@ func _boss_arena() -> void:
 	_ledge(Rect2(arena_x + 120.0, gy - 140.0, 260.0, 14.0))
 	_ledge(Rect2(arena_x + 1520.0, gy - 140.0, 260.0, 14.0))
 	_ledge(Rect2(arena_x + 820.0, gy - 250.0, 260.0, 14.0))
+	_pad(arena_x + 60.0, 1150.0)
+	_pad(arena_x + 1840.0, 1150.0)
 	_flat(200.0, 0.0)
 	_end_piece()
 	_block(Rect2(x - 20.0, y - 1200.0, 60.0, 1200.0 + 1500.0), "wall")
@@ -466,3 +489,157 @@ func _boss_arena() -> void:
 	out["boss_pos"] = Vector2(arena_x + 950.0, gy - 360.0)
 	out["goal"] = Vector2(arena_x + 950.0, gy)
 	out["length"] = x
+
+# =====================================================================
+# Movement-Bausteine: Wall-Jump-Schacht, Rutsch-Tunnel, Dash-Lücke, Sprungfelder,
+# Abfahrt mit Schanze, Säulen-Parcours, brüchiger Boden mit Geheimfach
+# =====================================================================
+func _pad(px: float, power: float) -> void:
+	out["pads"].append({"pos": Vector2(px, ground_y_at(px)), "power": power})
+
+func _sign(px: float, py: float, key: String) -> void:
+	if signs:
+		out["hints"].append({"pos": Vector2(px, py), "key": key})
+
+func _chunk_shaft() -> void:
+	_flat(rng.randf_range(140.0, 220.0), 3.0)
+	var h := minf(rng.randf_range(260.0, 420.0), y - MIN_Y)
+	if h < 200.0:
+		_chunk_canyon()
+		return
+	var w := rng.randf_range(115.0, 150.0)
+	var floor_y := y
+	var wall_x := x
+	_rough(w + 36.0, 0.0, 1.0)
+	# Hängewand: reicht von oben bis 95 px über den Boden -> man läuft darunter in den Schacht
+	_block(Rect2(wall_x, floor_y - h - 20.0, 36.0, h + 20.0 - 95.0), "building")
+	for i in 4:
+		var cx := wall_x + 36.0 + (w * 0.3 if i % 2 == 0 else w * 0.7)
+		out["coins"].append(Vector2(cx, floor_y - 130.0 - i * (h - 120.0) / 4.0))
+	_sign(wall_x + 36.0 + w * 0.5, floor_y - 160.0, "sign_walljump")
+	_step(-h)
+	var top_a := x
+	_rough(rng.randf_range(220.0, 340.0), rng.randf_range(-10.0, 10.0), 5.0)
+	out["decor"].append({"kind": "tower", "pos": Vector2(top_a + 60.0, ground_y_at(top_a + 60.0))})
+	if rng.randf() < 0.7:
+		_spawn(_high_kind(), Vector2(x - 80.0, ground_y_at(x - 80.0) - 34.0))
+
+func _chunk_tunnel() -> void:
+	_flat(rng.randf_range(200.0, 280.0), 3.0)
+	var gy := y
+	var len := rng.randf_range(170.0, 280.0)
+	var tx := x
+	_rough(len + 70.0, 0.0, 0.3)
+	# hohe Wand mit Schlitz unten: nur rutschend passierbar
+	_block(Rect2(tx + 35.0, gy - 44.0 - 440.0, len, 440.0), "building")
+	_coin_line(tx + 50.0, tx + len + 20.0, gy - 18.0, 6)
+	_sign(tx - 40.0, gy - 120.0, "sign_slide")
+	_flat(rng.randf_range(180.0, 260.0), 4.0)
+	for i in _count(0.8):
+		_spawn_ground(_ground_kind(), x - rng.randf_range(30.0, 150.0))
+
+func _chunk_dash_gap() -> void:
+	_flat(rng.randf_range(180.0, 260.0), 3.0)
+	var gy := y
+	_end_piece()
+	var w := rng.randf_range(320.0, 420.0)
+	_coin_arc(x + 20.0, x + w - 20.0, gy - 60.0, 50.0, 7)
+	_sign(x - 60.0, gy - 120.0, "sign_dash")
+	if rng.randf() < 0.4 + d * 0.1:
+		_spawn("drone", Vector2(x + w * 0.5, gy - 220.0))
+	x += w
+	y = clampf(gy + rng.randf_range(-30.0, 20.0), MIN_Y, MAX_Y)
+	_start_piece()
+	_flat(rng.randf_range(260.0, 380.0))
+	for i in _count(0.6):
+		_spawn_ground(_ground_kind(), x - rng.randf_range(40.0, 200.0))
+
+func _chunk_pad_cliff() -> void:
+	var h := minf(rng.randf_range(260.0, 380.0), y - MIN_Y)
+	if h < 180.0:
+		_chunk_downhill()
+		return
+	_flat(rng.randf_range(160.0, 220.0), 3.0)
+	var pad_x := x + 40.0
+	_rough(160.0, 0.0, 0.5)
+	_pad(pad_x, sqrt(2.0 * 1950.0 * (h + 90.0)))
+	for i in 4:
+		out["coins"].append(Vector2(pad_x + 20.0, ground_y_at(pad_x) - 120.0 - i * 60.0))
+	_step(-h)
+	var top := x
+	_rough(rng.randf_range(260.0, 420.0), rng.randf_range(-20.0, 20.0), 6.0)
+	for i in _count(0.9):
+		_spawn_ground(_ground_kind(), rng.randf_range(top + 80.0, x - 40.0))
+
+func _chunk_pad_gap() -> void:
+	_flat(rng.randf_range(180.0, 260.0), 3.0)
+	var pad_x := x - 70.0
+	_pad(pad_x, 1250.0)
+	var gy := y
+	_end_piece()
+	var w := rng.randf_range(420.0, 540.0)
+	_coin_arc(x + 30.0, x + w - 30.0, gy - 120.0, 160.0, 9)
+	if rng.randf() < 0.4:
+		_ledge(Rect2(x + w * 0.5 - 60.0, gy - 80.0, 120.0, 14.0))
+	x += w
+	y = clampf(gy + rng.randf_range(-60.0, 30.0), MIN_Y, MAX_Y)
+	_start_piece()
+	_flat(rng.randf_range(260.0, 360.0))
+	for i in _count(0.7):
+		_spawn_ground(_ground_kind(), x - rng.randf_range(40.0, 200.0))
+
+func _chunk_downhill() -> void:
+	if y > MAX_Y - 180.0:
+		_rough(rng.randf_range(300.0, 420.0), -rng.randf_range(180.0, 240.0), 5.0)
+	_flat(rng.randf_range(80.0, 140.0), 2.0)
+	var drop := minf(rng.randf_range(220.0, 360.0), MAX_Y - y - 10.0)
+	_sign(x, y - 110.0, "sign_slide_hill")
+	_rough(drop / rng.randf_range(0.62, 0.8), drop, 2.5)
+	# Schanze
+	_rough(80.0, -46.0, 0.0)
+	var gy := y
+	_end_piece()
+	var w := rng.randf_range(260.0, 360.0)
+	_coin_arc(x + 20.0, x + w - 20.0, gy - 40.0, 120.0, 8)
+	x += w
+	y = clampf(gy + rng.randf_range(0.0, 60.0), MIN_Y, MAX_Y)
+	_start_piece()
+	_flat(rng.randf_range(280.0, 380.0))
+	for i in _count(0.8):
+		_spawn_ground(_ground_kind(), x - rng.randf_range(40.0, 220.0))
+
+func _chunk_pillars() -> void:
+	_flat(rng.randf_range(120.0, 180.0), 3.0)
+	var top := y
+	_end_piece()
+	var n := rng.randi_range(3, 5)
+	for i in n:
+		x += rng.randf_range(110.0, 175.0)
+		var w := rng.randf_range(44.0, 72.0)
+		top = clampf(top + rng.randf_range(-90.0, 60.0), MIN_Y, MAX_Y)
+		_block(Rect2(x, top, w, BOTTOM - top), "building")
+		out["coins"].append(Vector2(x + w * 0.5, top - 34.0))
+		if i == n / 2 and rng.randf() < 0.5 + d * 0.1:
+			_spawn("turret", Vector2(x + w * 0.5, top - 34.0))
+		x += w
+	x += rng.randf_range(110.0, 170.0)
+	y = clampf(top + rng.randf_range(0.0, 50.0), MIN_Y, MAX_Y)
+	_start_piece()
+	_flat(rng.randf_range(260.0, 360.0))
+
+func _chunk_weak() -> void:
+	_flat(rng.randf_range(160.0, 240.0), 3.0)
+	var gy := y
+	var px0 := x
+	var pw := rng.randf_range(170.0, 230.0)
+	var depth := rng.randf_range(100.0, 128.0)
+	_step(depth)
+	_rough(pw - 4.0, 0.0, 0.5)
+	_step(-depth)
+	# Deckel aus brüchigem Material, bündig mit dem Boden: mit dem Ground-Slam aufbrechen
+	_block(Rect2(px0 - 2.0, gy - 2.0, pw + 4.0, 26.0), "weak")
+	_coin_line(px0 + 25.0, px0 + pw - 25.0, gy + depth - 30.0, 6)
+	_sign(px0 + pw * 0.5, gy - 110.0, "sign_slam")
+	_flat(rng.randf_range(220.0, 320.0), 4.0)
+	for i in _count(0.7):
+		_spawn_ground(_ground_kind(), x - rng.randf_range(30.0, 180.0))

@@ -9,11 +9,16 @@ var activated := false
 var t := 0.0
 var text := ""
 var font: Font
+var power := 1200.0
+var trig_t := 0.0
 
 func _ready() -> void:
 	z_index = 5 if kind != "hint" else 4
 	if kind == "hint":
 		font = load("res://assets/fonts/MonoFont.ttf")
+
+func trigger() -> void:
+	trig_t = 0.35
 
 func activate() -> void:
 	activated = true
@@ -21,6 +26,7 @@ func activate() -> void:
 
 func _process(delta: float) -> void:
 	t += delta
+	trig_t = maxf(0.0, trig_t - delta)
 	queue_redraw()
 
 func _draw() -> void:
@@ -28,6 +34,7 @@ func _draw() -> void:
 		"checkpoint": _draw_checkpoint()
 		"goal": _draw_goal()
 		"hint": _draw_hint()
+		"pad": _draw_pad()
 
 func _draw_checkpoint() -> void:
 	var on := activated
@@ -78,6 +85,20 @@ func _draw_goal() -> void:
 	for j in 2:
 		var kk := fmod(k + j * 0.5, 1.0)
 		Neon.dot(self, Vector2(0, -kk * 400.0), 3.0, Neon.fade(c, 1.0 - kk), 0.8)
+
+# Sprungfeld: Basis mit nach oben laufenden Pfeilen
+func _draw_pad() -> void:
+	var c: Color = pal["accent"].lerp(Color(1, 1, 1), 0.2)
+	var k := trig_t / 0.35
+	Neon.line(self, Vector2(-30, -2), Vector2(30, -2), c, 3.0, 1.0 + k)
+	Neon.line(self, Vector2(-24, -8), Vector2(24, -8), Neon.fade(c, 0.6), 1.6, 0.6)
+	for i in 3:
+		var ph := fmod(t * 1.6 + i / 3.0, 1.0)
+		var yy := -14.0 - ph * 46.0
+		var w := 14.0 - ph * 6.0
+		var a := (1.0 - ph) * (0.9 + k)
+		Neon.polyline(self, PackedVector2Array([Vector2(-w, yy + 8), Vector2(0, yy), Vector2(w, yy + 8)]), Neon.fade(c, a), 2.0, 0.8)
+	Neon.halo(self, Vector2(0, -10), 46.0 + k * 40.0, Neon.fade(c, 0.12 + k * 0.4))
 
 func _draw_hint() -> void:
 	var a := 0.55 + 0.25 * sin(t * 2.5)

@@ -65,6 +65,7 @@ var base_time_scale := 1.0
 var shake_scale := 1.0
 var enemies: Array = []
 var chunks: Array = []
+var pads: Array = []
 var carve_rng := RandomNumberGenerator.new()
 var zoom_kick := 0.0
 var speed_zoom := 0.0
@@ -139,6 +140,7 @@ func start_section() -> void:
 		c.queue_free()
 	enemies.clear()
 	enemies_by_id.clear()
+	pads.clear()
 	next_enemy_id = 0
 	remotes.clear()
 	clear_requested = false
@@ -197,6 +199,14 @@ func start_section() -> void:
 		spawn_enemy(s["kind"], s["pos"])
 	for cpos in level["coins"]:
 		pickups.place_coin(cpos)
+	for pd in level.get("pads", []):
+		var pn = Props.new()
+		pn.kind = "pad"
+		pn.pal = pal
+		pn.power = pd["power"]
+		pn.position = pd["pos"]
+		props_node.add_child(pn)
+		pads.append(pn)
 	for cp in level["checkpoints"]:
 		var n = Props.new()
 		n.kind = "checkpoint"
@@ -288,7 +298,7 @@ func _build_terrain() -> void:
 			x0 = x1
 	for b in level["blocks"]:
 		var r: Rect2 = b["rect"]
-		if b["kind"] in ["building", "box"]:
+		if b["kind"] in ["building", "box", "weak"]:
 			var poly := PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)])
 			_add_chunk(b["kind"], poly, Run.section_seed() + i, [])
 			i += 1
@@ -358,11 +368,47 @@ func carve(pos: Vector2, radius: float, normal: Vector2 = Vector2.UP, seed_value
 	var rect := Rect2(pos - Vector2(radius, radius) * 1.2, Vector2(radius, radius) * 2.4)
 	var hit_chunk = null
 	for c in chunks:
+		if c.kind == "weak" and c.bbox.grow(radius).has_point(pos):
+			# brüchiges Material: viel größere Löcher
+			var big = TerrainChunk.stair_shape(pos, radius * 2.4, carve_rng)
+			if c.carve(big, Rect2(pos - Vector2(radius, radius) * 2.8, Vector2(radius, radius) * 5.6)):
+				hit_chunk = c
+			continue
 		if c.carve(shape, rect):
 			hit_chunk = c
 	if hit_chunk:
 		var col: Color = hit_chunk.edge_color(Vector2.ZERO, Vector2(1, 0) if absf(normal.y) > 0.5 else Vector2(0, 1))
 		fx.chips(pos, col, int(clampf(radius * 0.8, 4.0, 24.0)), normal)
+
+# Ground-Slam auf brüchigem Boden: ganzes Stück zerbricht
+func slam_break(pos: Vector2) -> bool:
+	for i in chunks.size():
+		var c = chunks[i]
+		if is_instance_valid(c) and c.kind == "weak" and c.bbox.grow(30.0).has_point(pos):
+			_break_weak(i)
+			if Net.active:
+				Net.weak_break.rpc(i)
+			return true
+	return false
+
+func _break_weak(i: int) -> void:
+	if i < 0 or i >= chunks.size():
+		return
+	var c = chunks[i]
+	if not is_instance_valid(c) or c.broken:
+		return
+	c.broken = true
+	var center: Vector2 = c.bbox.get_center()
+	for k in 5:
+		fx.chips(center + Vector2(randf_range(-c.bbox.size.x * 0.5, c.bbox.size.x * 0.5), 0), pal["ledge"], 14, Vector2.UP)
+	fx.shockwave(center, pal["ledge"], 180.0)
+	fx.star(center, pal["ledge"], 90.0, 0.25, 12)
+	shake(0.5)
+	Sfx.play_at("explosion", center, -2.0, 1.3)
+	c.queue_free()
+
+func net_weak_break(i: int) -> void:
+	_break_weak(i)
 
 func spawn_enemy(kind: String, pos: Vector2, broadcast: bool = false, forced_id: int = -1):
 	if not ENEMIES.has(kind):
@@ -403,6 +449,11 @@ func _physics_process(delta: float) -> void:
 	if player.dead:
 		return
 	var pp: Vector2 = player.global_position
+	for pn in pads:
+		var rel: Vector2 = pp - pn.position
+		if absf(rel.x) < 34.0 and rel.y > -50.0 and rel.y < -10.0 and player.velocity.y > -150.0:
+			player.launch(pn.power)
+			pn.trigger()
 	for i in checkpoints.size():
 		var cp = checkpoints[i]
 		if not cp.activated and pp.x >= cp.position.x - 10.0:

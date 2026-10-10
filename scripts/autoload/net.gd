@@ -363,6 +363,11 @@ func carve(pos: Vector2, radius: float, normal: Vector2, seed_value: int) -> voi
 		game.net_carve(pos, radius, normal, seed_value)
 
 @rpc("any_peer", "reliable")
+func weak_break(index: int) -> void:
+	if _g():
+		game.net_weak_break(index)
+
+@rpc("any_peer", "reliable")
 func fx_explosion(pos: Vector2, radius: float) -> void:
 	if _g():
 		game.net_fx_explosion(pos, radius)

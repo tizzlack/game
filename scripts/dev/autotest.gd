@@ -43,6 +43,8 @@ func _ready() -> void:
 			start_world = int(a.substr(8))
 		elif a.begins_with("--section="):
 			start_section = int(a.substr(10))
+		elif a.begins_with("--chunks="):
+			load("res://scripts/world/level_gen.gd").force_plan = Array(a.substr(9).split(","))
 		elif a.begins_with("--every="):
 			shot_every = float(a.substr(8))
 		elif a.begins_with("--net="):
@@ -183,6 +185,10 @@ func _drive(g, p, delta: float) -> void:
 	var gap: bool = space.intersect_ray(q).is_empty()
 	var q2 := PhysicsRayQueryParameters2D.create(pp, pp + Vector2(dir * 50.0, 0), 1)
 	var wall: bool = not space.intersect_ray(q2).is_empty()
+	# niedrige Decke vor uns (Rutsch-Tunnel)?
+	var qh := PhysicsRayQueryParameters2D.create(pp + Vector2(0, -20), pp + Vector2(dir * 70.0, -20), 1)
+	var ql := PhysicsRayQueryParameters2D.create(pp + Vector2(0, 20), pp + Vector2(dir * 70.0, 20), 1)
+	var low_ceiling: bool = not space.intersect_ray(qh).is_empty() and space.intersect_ray(ql).is_empty()
 	if absf(pp.x - last_x) < 1.0:
 		stuck_t += delta
 	else:
@@ -192,14 +198,17 @@ func _drive(g, p, delta: float) -> void:
 		jump_hold -= delta
 		if jump_hold <= 0.0:
 			_press("jump", false)
-	elif (gap or wall or stuck_t > 0.4 or randf() < 0.004) and p.is_on_floor():
+	elif p.wall_sliding and randf() < 0.3:
+		_press("jump", true)
+		jump_hold = 0.25
+	elif (gap or wall or stuck_t > 0.4 or randf() < 0.004) and p.is_on_floor() and not low_ceiling:
 		_press("jump", true)
 		jump_hold = 0.35
 	elif not p.is_on_floor() and gap and p.velocity.y > 0.0 and randf() < 0.05:
 		_press("jump", true)
 		jump_hold = 0.2
 	# neue Moves gelegentlich ausprobieren: Rutschen, Ground-Slam, Dash nach oben
-	var slide: bool = p.is_on_floor() and absf(p.velocity.x) > 250.0 and randf() < 0.015
+	var slide: bool = p.is_on_floor() and absf(p.velocity.x) > 200.0 and (low_ceiling or randf() < 0.015)
 	var slam: bool = not p.is_on_floor() and p.velocity.y < 0.0 and randf() < 0.01
 	_press("move_down", slide or slam)
 	_press("move_up", randf() < 0.02)

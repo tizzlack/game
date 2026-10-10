@@ -15,6 +15,16 @@ func t(key: String) -> String:
 	return key
 
 const DE := {
+	"sign_slide": "S ▸ RUTSCHEN",
+	"sign_slide_pad": "↓ ▸ RUTSCHEN",
+	"sign_slide_hill": "BERGAB RUTSCHEN = TEMPO",
+	"sign_slide_hill_pad": "BERGAB RUTSCHEN = TEMPO",
+	"sign_walljump": "▲ WALLJUMP ▲",
+	"sign_walljump_pad": "▲ WALLJUMP ▲",
+	"sign_dash": "SHIFT ▸ DASH",
+	"sign_dash_pad": "B ▸ DASH",
+	"sign_slam": "S + SHIFT ▸ SLAM",
+	"sign_slam_pad": "↓ + B ▸ SLAM",
 	"net_create": "LOBBY ERSTELLEN",
 	"net_via_steam": "Über Steam (Spacewar-Test-App) – funktioniert über das Internet, ohne Portfreigabe.",
 	"net_enter_code": "CODE EINGEBEN",
@@ -295,6 +305,16 @@ const DE := {
 }
 
 const EN := {
+	"sign_slide": "S ▸ SLIDE",
+	"sign_slide_pad": "↓ ▸ SLIDE",
+	"sign_slide_hill": "SLIDE DOWNHILL = SPEED",
+	"sign_slide_hill_pad": "SLIDE DOWNHILL = SPEED",
+	"sign_walljump": "▲ WALL JUMP ▲",
+	"sign_walljump_pad": "▲ WALL JUMP ▲",
+	"sign_dash": "SHIFT ▸ DASH",
+	"sign_dash_pad": "B ▸ DASH",
+	"sign_slam": "S + SHIFT ▸ SLAM",
+	"sign_slam_pad": "↓ + B ▸ SLAM",
 	"net_create": "CREATE LOBBY",
 	"net_via_steam": "Via Steam (Spacewar test app) – works over the internet without port forwarding.",
 	"net_enter_code": "ENTER CODE",
