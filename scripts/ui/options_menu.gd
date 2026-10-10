@@ -23,6 +23,8 @@ func _ready() -> void:
 	_check(v, "vsync", "vsync")
 	_check(v, "dmg_numbers", "dmg_numbers")
 	_check(v, "show_fps", "show_fps")
+	_check(v, "vibration", "vibration")
+	_check(v, "aim_assist", "aim_assist")
 	var lang_row := UI.hbox(20)
 	var ll := UI.label(L.t("language"), 20)
 	ll.custom_minimum_size = Vector2(260, 0)

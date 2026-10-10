@@ -10,7 +10,6 @@ var pal: Dictionary
 var seams: Array = []  # x-Positionen von inneren Schnittkanten (werden nicht gezeichnet)
 var top_y := 0.0
 var bbox := Rect2()
-var windows: Array = []
 var seed_value := 0
 var destructible := true
 var carve_floor := INF  # unterhalb dieser Höhe wird nicht mehr ausgestanzt
@@ -25,17 +24,6 @@ func setup(k: String, poly: PackedVector2Array, palette: Dictionary, s: int, sea
 	collision_mask = 0
 	_update_bounds()
 	carve_floor = top_y + 260.0
-	if kind == "building":
-		var rng := RandomNumberGenerator.new()
-		rng.seed = s
-		var r := bbox
-		var cols := int((r.size.x - 24.0) / 22.0)
-		var rows := int(minf(r.size.y, 480.0) / 26.0)
-		for cy in rows:
-			for cx in cols:
-				if rng.randf() < 0.38:
-					var c: Color = pal["window"] if rng.randf() < 0.65 else pal["building"]
-					windows.append([Vector2(r.position.x + 16.0 + cx * 22.0, r.position.y + 26.0 + cy * 26.0), c, rng.randf_range(0.5, 1.0)])
 
 func _ready() -> void:
 	_rebuild_collision()
@@ -173,10 +161,3 @@ func _draw() -> void:
 				Neon.polyline(self, Neon.jagged(PackedVector2Array([a, b]), rng, 6.0, 2.0), c, 2.4, 1.0)
 			else:
 				Neon.line(self, a, b, c, 2.4, 1.0)
-	if kind == "building":
-		for w in windows:
-			var wp: Vector2 = w[0]
-			if not contains(wp + Vector2(3, 1)):
-				continue
-			var wc: Color = w[1]
-			draw_rect(Rect2(wp, Vector2(7, 2.5)), Neon.hdr(Neon.fade(wc, w[2]), 0.6))

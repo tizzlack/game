@@ -21,7 +21,21 @@ static func pose(phase: float, speed: float, move_dir: float, on_floor: bool, ai
 	var bob := 0.0
 	var lean := 0.0
 	var legs: Array = []  # [Oberschenkel-Winkel, Kniebeugung]
-	if dash:
+	var slide: bool = extra.get("slide", false)
+	var wall: int = extra.get("wall", 0)
+	var slam: bool = extra.get("slam", false)
+	if slam:
+		legs = [[1.25, 2.3], [0.65, 2.0]]
+		bob = 2.0
+	elif slide:
+		# zurückgelehnt, vorderes Bein gestreckt, hinteres untergeschlagen
+		lean = -0.9
+		bob = 15.0
+		legs = [[1.35, 0.1], [0.9, 2.4]]
+	elif wall != 0:
+		lean = -0.12
+		legs = [[0.75, 1.35], [0.3, 0.95]]
+	elif dash:
 		lean = 0.55
 		legs = [[0.7, 1.1], [-0.95, 0.35]]
 	elif on_floor and s > 0.06:

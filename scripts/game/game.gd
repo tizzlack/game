@@ -66,6 +66,7 @@ var enemies: Array = []
 var chunks: Array = []
 var carve_rng := RandomNumberGenerator.new()
 var zoom_kick := 0.0
+var speed_zoom := 0.0
 const BASE_ZOOM := 1.2
 
 func _ready() -> void:
@@ -167,7 +168,7 @@ func start_section() -> void:
 		var n = Props.new()
 		n.kind = "hint"
 		n.pal = pal
-		n.text = L.t(h["key"])
+		n.text = L.t(h["key"] + ("_pad" if Controls.using_gamepad else ""))
 		n.position = h["pos"]
 		props_node.add_child(n)
 	if is_boss:
@@ -353,7 +354,7 @@ func _process(delta: float) -> void:
 	var rdelta := delta / maxf(Engine.time_scale, 0.001)
 	trauma = maxf(0.0, trauma - rdelta * 1.6)
 	if not player.dead:
-		var look := Vector2(player.aim.x * 110.0, -55.0 + player.aim.y * 50.0) + Vector2(player.velocity.x * 0.15, 0)
+		var look := Vector2(player.aim.x * 110.0, -55.0 + player.aim.y * 50.0) + Vector2(player.velocity.x * 0.22, player.velocity.y * 0.06)
 		var target: Vector2 = player.global_position + look
 		cam_pos = cam_pos.lerp(target, clampf(7.0 * rdelta, 0.0, 1.0))
 	var sh := trauma * trauma * shake_scale
@@ -362,12 +363,19 @@ func _process(delta: float) -> void:
 	camera.global_position = cam_pos + offset
 	camera.rotation = sin(t * 23.0) * sh * 0.015
 	zoom_kick = lerpf(zoom_kick, 0.0, clampf(6.0 * rdelta, 0.0, 1.0))
-	camera.zoom = Vector2.ONE * BASE_ZOOM * (1.0 + zoom_kick)
+	# bei hohem Tempo leicht herauszoomen und weiter vorausschauen
+	var spd := clampf((player.velocity.length() - 300.0) / 700.0, 0.0, 1.0)
+	speed_zoom = lerpf(speed_zoom, spd, clampf(2.5 * rdelta, 0.0, 1.0))
+	camera.zoom = Vector2.ONE * BASE_ZOOM * (1.0 + zoom_kick - speed_zoom * 0.1)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause") and state == "play" and overlay == null:
 		open_pause()
 		get_viewport().set_input_as_handled()
+
+# Controller-Vibration (stark 0..1, Dauer in Sekunden)
+func rumble(strength: float, duration: float) -> void:
+	Controls.rumble(strength, duration)
 
 func shake(amount: float) -> void:
 	trauma = minf(1.0, trauma + amount)
@@ -477,6 +485,8 @@ func on_enemy_killed(e, reward: bool) -> void:
 	if not reward:
 		return
 	var v := Run.add_kill(e.score_value)
+	if player and not player.dead:
+		player.on_kill()
 	fx.text(pos + Vector2(0, -30), "+%d" % v, Color(1, 1, 1, 0.9), 18.0, 0.9)
 	pickups.drop_coins(pos, e.credit_value)
 	if randf() < 0.07 and Run.stats["heal_mult"] > 0.0:

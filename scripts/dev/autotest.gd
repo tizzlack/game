@@ -114,7 +114,7 @@ func _press(a: String, on: bool) -> void:
 		Input.action_release(a)
 
 func _release_all() -> void:
-	for a in ["move_left", "move_right", "jump", "shoot", "dash", "move_down"]:
+	for a in ["move_left", "move_right", "jump", "shoot", "dash", "move_down", "move_up"]:
 		Input.action_release(a)
 
 func _drive(g, p, delta: float) -> void:
@@ -153,7 +153,12 @@ func _drive(g, p, delta: float) -> void:
 	elif not p.is_on_floor() and gap and p.velocity.y > 0.0 and randf() < 0.05:
 		_press("jump", true)
 		jump_hold = 0.2
-	_press("dash", (gap and not p.is_on_floor() and p.velocity.y > 100.0) or randf() < 0.004)
+	# neue Moves gelegentlich ausprobieren: Rutschen, Ground-Slam, Dash nach oben
+	var slide: bool = p.is_on_floor() and absf(p.velocity.x) > 250.0 and randf() < 0.015
+	var slam: bool = not p.is_on_floor() and p.velocity.y < 0.0 and randf() < 0.01
+	_press("move_down", slide or slam)
+	_press("move_up", randf() < 0.02)
+	_press("dash", slam or (gap and not p.is_on_floor() and p.velocity.y > 100.0) or randf() < 0.004)
 
 func _menu_tour(delta: float) -> void:
 	shot_t += delta

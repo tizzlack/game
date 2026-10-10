@@ -31,7 +31,7 @@ func defaults() -> Dictionary:
 		"daily_streak": 0,
 		"daily_last": "",
 		"settings": {"master": 0.8, "music": 0.65, "sfx": 0.8, "fullscreen": true, "vsync": true,
-			"shake": 1.0, "lang": "", "dmg_numbers": true, "show_fps": false},
+			"shake": 1.0, "lang": "", "dmg_numbers": true, "show_fps": false, "vibration": true, "aim_assist": true},
 	}
 
 func load_data() -> void:
