@@ -263,7 +263,10 @@ func _move_step(delta: float, s: Dictionary, input_x: float, down: bool, on_floo
 		position.y += 2.0
 	elif buffer_t > 0.0:
 		if slide_t > 0.0 and (on_floor or coyote_t > 0.0):
-			_slide_jump()
+			if _can_stand():
+				_slide_jump()
+			else:
+				buffer_t = 0.0  # unter einer Decke: weiterrutschen statt festklemmen
 		elif coyote_t > 0.0:
 			if after_dash_t > 0.0:
 				_super_jump()

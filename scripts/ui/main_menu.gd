@@ -105,6 +105,10 @@ func show_home() -> void:
 	var sub := UI.label(L.t("tagline"), 20, Color(1.0, 0.45, 0.6), "mono")
 	left.add_child(sub)
 	left.add_child(UI.spacer(14))
+	var tut_new: bool = not Save.data.get("tutorial_done", false)
+	var tut := UI.button(L.t("tutorial") + ("  ★ " + L.t("recommended") if tut_new else ""), func(): start_run.emit({"tutorial": true}))
+	if tut_new:
+		left.add_child(tut)
 	var play := UI.button(L.t("play"), show_setup)
 	left.add_child(play)
 	var daily := UI.button(L.t("daily") + _daily_suffix(), _start_daily)
@@ -114,6 +118,8 @@ func show_home() -> void:
 	left.add_child(UI.button(L.t("achievements"), show_achievements))
 	left.add_child(UI.button(L.t("stats"), show_stats))
 	left.add_child(UI.button(L.t("options"), show_options))
+	if not tut_new:
+		left.add_child(tut)
 	left.add_child(UI.button(L.t("quit"), func(): quit_game.emit()))
 	for c in left.get_children():
 		if c is Button:
@@ -132,7 +138,7 @@ func show_home() -> void:
 	ver.offset_left = 20
 	ver.offset_top = -34
 	content.add_child(ver)
-	_focus_first(play)
+	_focus_first(tut if tut_new else play)
 
 func _daily_suffix() -> String:
 	var b := Save.daily_best()

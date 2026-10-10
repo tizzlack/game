@@ -26,6 +26,7 @@ const ENEMIES := {
 	"turret": preload("res://scripts/enemies/turret.gd"),
 	"drone": preload("res://scripts/enemies/drone.gd"),
 	"boss": preload("res://scripts/enemies/boss.gd"),
+	"dummy": preload("res://scripts/enemies/dummy.gd"),
 }
 
 signal quit_to_menu
@@ -158,9 +159,12 @@ func start_section() -> void:
 	pal = Data.PALETTES[Run.palette_index()]
 	var gen := LevelGen.new()
 	var is_boss := Run.is_boss()
-	var tutorial: bool = Run.world == 0 and Run.section == 0 and Run.loop == 0 and int(Save.stat("runs")) <= 3 and not Net.active
+	var tutorial := false  # das Tutorial ist jetzt ein eigenes Level (Hauptmenü)
 	var length := 4200.0 + Run.world * 500.0 + Run.section * 350.0 + Run.loop * 600.0
-	if versus:
+	if Run.tutorial:
+		is_boss = false
+		level = gen.generate_tutorial()
+	elif versus:
 		is_boss = false
 		level = gen.generate_versus(Run.section_seed())
 	else:
@@ -233,7 +237,10 @@ func start_section() -> void:
 	else:
 		_spawn_goal(level["goal"])
 		Sfx.music("run")
-		hud.banner(L.t(pal["name"]), Run.label(), pal["accent"])
+		if Run.tutorial:
+			hud.banner(L.t("tutorial"), L.t("tutorial_sub"), pal["accent"], 3.0)
+		else:
+			hud.banner(L.t(pal["name"]), Run.label(), pal["accent"])
 	camera.limit_left = -470
 	camera.limit_right = int(level["length"] + 20.0)
 	camera.limit_bottom = int(LevelGen.BASE_Y + 330.0)
@@ -368,6 +375,8 @@ func carve(pos: Vector2, radius: float, normal: Vector2 = Vector2.UP, seed_value
 	var rect := Rect2(pos - Vector2(radius, radius) * 1.2, Vector2(radius, radius) * 2.4)
 	var hit_chunk = null
 	for c in chunks:
+		if not is_instance_valid(c) or c.broken:
+			continue
 		if c.kind == "weak" and c.bbox.grow(radius).has_point(pos):
 			# brüchiges Material: viel größere Löcher
 			var big = TerrainChunk.stair_shape(pos, radius * 2.4, carve_rng)
@@ -461,7 +470,9 @@ func _physics_process(delta: float) -> void:
 			if Net.active:
 				Net.cp_reached.rpc(i)
 	if goal and state in ["play", "boss_dead"] and absf(pp.x - goal.position.x) < 40.0 and pp.y > goal.position.y - 220.0:
-		if not Net.active:
+		if Run.tutorial:
+			_tutorial_complete()
+		elif not Net.active:
 			_section_clear()
 		elif not clear_requested:
 			clear_requested = true
@@ -821,7 +832,28 @@ func back_to_lobby() -> void:
 
 func give_up() -> void:
 	_close_overlay()
+	if Run.tutorial:
+		Run.active = false
+		quit_to_menu.emit()
+		return
 	_end_run(false)
+
+func _tutorial_complete() -> void:
+	state = "clear"
+	player.frozen = true
+	player.velocity.x = 0.0
+	var first: bool = not Save.data.get("tutorial_done", false)
+	Save.data["tutorial_done"] = true
+	if first:
+		Save.add_bank(150)
+	Save.save_data()
+	Run.active = false
+	Sfx.play("clear")
+	fx.shockwave(goal.position + Vector2(0, -60), pal["ground"], 400.0)
+	hud.banner(L.t("tutorial_done"), ("+$150  " if first else "") + L.t("tutorial_done_sub"), pal["accent"], 3.5)
+	await get_tree().create_timer(3.2).timeout
+	if is_inside_tree():
+		quit_to_menu.emit()
 
 # --- Overlays ---
 func open_pause() -> void:

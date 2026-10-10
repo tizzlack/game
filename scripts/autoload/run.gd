@@ -15,6 +15,7 @@ var loop := 0
 var heat := 0
 var daily := false
 var net_mode := ""  # "" | coop | versus
+var tutorial := false
 var endless := false
 var weapon_id := "blaster"
 var mutators: Array = []
@@ -42,6 +43,7 @@ func start(opts: Dictionary) -> void:
 	active = true
 	daily = opts.get("daily", false)
 	net_mode = opts.get("net", "")
+	tutorial = opts.get("tutorial", false)
 	heat = opts.get("heat", 0)
 	weapon_id = opts.get("weapon", "blaster")
 	mutators = opts.get("mutators", []).duplicate()
@@ -81,7 +83,8 @@ func start(opts: Dictionary) -> void:
 		var pick := roll_cards(1, 0)
 		if pick.size() > 0:
 			apply_card(pick[0])
-	Save.add_stat("runs", 1)
+	if not tutorial:
+		Save.add_stat("runs", 1)
 	Save.save_data()
 
 func base_stats() -> Dictionary:
@@ -120,6 +123,8 @@ func base_stats() -> Dictionary:
 				s["heal_mult"] = 0.0
 				s["lifesteal"] += 1.0
 	s["credit_mult"] += 0.15 * heat
+	if tutorial:
+		s["dmg_taken"] = 0.0  # im Tutorial kann man nicht sterben
 	return s
 
 func apply_card(id: String) -> void:
@@ -268,7 +273,8 @@ func achievement(id: String) -> void:
 
 # Run beenden: Credits gutschreiben, Statistik speichern. Gibt Zusammenfassung zurück.
 func finish(victory: bool) -> Dictionary:
-	if not active:
+	if not active or tutorial:
+		active = false
 		return {}
 	active = false
 	won = victory

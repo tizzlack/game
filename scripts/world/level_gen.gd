@@ -643,3 +643,138 @@ func _chunk_weak() -> void:
 	_flat(rng.randf_range(220.0, 320.0), 4.0)
 	for i in _count(0.7):
 		_spawn_ground(_ground_kind(), x - rng.randf_range(30.0, 180.0))
+
+# =====================================================================
+# Tutorial: fest gebautes Level, das jede Technik an einer eigenen Station beibringt
+# =====================================================================
+func _tut_hint(px: float, key: String) -> void:
+	var gy := ground_y_at(px)
+	if gy == INF:
+		gy = y
+	out["hints"].append({"pos": Vector2(px, gy - 175.0), "key": key})
+
+func generate_tutorial() -> Dictionary:
+	rng.seed = 4242
+	d = 0.0
+	enemy_mult = 0.0
+	signs = false
+	out = {"ground": [], "blocks": [], "ledges": [], "spawns": [], "coins": [], "checkpoints": [], "hints": [],
+		"decor": [], "pads": [], "goal": Vector2.ZERO, "length": 0.0, "boss": false, "boss_pos": Vector2.ZERO,
+		"start": Vector2(80, BASE_Y - 40), "bottom": BOTTOM, "kill_y": KILL_Y, "arena": Rect2(), "pvp_spawns": []}
+	cur = PackedVector2Array()
+	x = -420.0
+	y = BASE_Y
+	_pt(x, y)
+	_block(Rect2(-480, BASE_Y - 1200, 60, 1200 + 1500), "wall")
+	_flat(720.0, 0.0)
+	_tut_hint(160.0, "tut_move")
+	# 1) Schießen auf Übungspuppen
+	_tut_hint(x + 200.0, "tut_shoot")
+	_flat(560.0, 0.0)
+	_spawn("dummy", Vector2(x - 220.0, y - 34.0))
+	_spawn("dummy", Vector2(x - 90.0, y - 34.0))
+	# 2) Springen
+	_tut_hint(x + 80.0, "tut_jump")
+	_flat(200.0, 0.0)
+	_step(-70.0)
+	_flat(300.0, 0.0)
+	# 3) Hoch springen (Taste halten)
+	_tut_hint(x + 60.0, "tut_highjump")
+	_flat(160.0, 0.0)
+	_step(-125.0)
+	_flat(320.0, 0.0)
+	# 4) Plattformen hinauf und wieder durchfallen
+	_tut_hint(x + 160.0, "tut_drop")
+	var px0 := x
+	_flat(760.0, 0.0)
+	_ledge(Rect2(px0 + 220.0, y - 115.0, 200.0, 14.0))
+	_ledge(Rect2(px0 + 440.0, y - 225.0, 200.0, 14.0))
+	_coin_line(px0 + 460.0, px0 + 620.0, y - 255.0, 5)
+	# 5) Dash über eine Lücke
+	_tut_hint(x + 40.0, "tut_dash")
+	_flat(220.0, 0.0)
+	var gy := y
+	_end_piece()
+	_coin_arc(x + 20.0, x + 330.0, gy - 60.0, 40.0, 7)
+	x += 350.0
+	_start_piece()
+	_flat(320.0, 0.0)
+	# 6) Super-Sprung (Dash + Sprung) über eine große Lücke
+	_tut_hint(x + 40.0, "tut_superjump")
+	_flat(280.0, 0.0)
+	gy = y
+	_end_piece()
+	_coin_arc(x + 30.0, x + 500.0, gy - 70.0, 90.0, 9)
+	x += 530.0
+	_start_piece()
+	_flat(340.0, 0.0)
+	# 7) Rutschen durch einen Tunnel
+	_tut_hint(x + 30.0, "tut_slide")
+	_flat(260.0, 0.0)
+	var tx := x
+	_rough(300.0, 0.0, 0.0)
+	_block(Rect2(tx + 35.0, y - 44.0 - 440.0, 230.0, 440.0), "building")
+	_coin_line(tx + 50.0, tx + 250.0, y - 18.0, 6)
+	_flat(260.0, 0.0)
+	# 8) Bergab rutschen für Tempo, Schanze
+	_tut_hint(x + 30.0, "tut_slidehill")
+	_flat(160.0, 0.0)
+	_rough(420.0, 300.0, 0.0)
+	_rough(80.0, -46.0, 0.0)
+	gy = y
+	_end_piece()
+	_coin_arc(x + 20.0, x + 300.0, gy - 40.0, 120.0, 8)
+	x += 320.0
+	y = gy + 30.0
+	_start_piece()
+	_flat(360.0, 0.0)
+	# 9) Wall-Jump-Schacht
+	_tut_hint(x + 60.0, "tut_walljump")
+	_flat(240.0, 0.0)
+	var floor_y := y
+	var wall_x := x
+	_rough(166.0, 0.0, 0.0)
+	_block(Rect2(wall_x, floor_y - 340.0, 36.0, 340.0 - 95.0), "building")
+	for i in 4:
+		out["coins"].append(Vector2(wall_x + 36.0 + (40.0 if i % 2 == 0 else 90.0), floor_y - 130.0 - i * 55.0))
+	_step(-320.0)
+	_flat(360.0, 0.0)
+	# 10) Sprungfeld
+	_tut_hint(x + 60.0, "tut_pad")
+	_flat(220.0, 0.0)
+	var pad_x := x + 40.0
+	_rough(170.0, 0.0, 0.0)
+	_pad(pad_x, sqrt(2.0 * 1950.0 * (300.0 + 90.0)))
+	_step(-300.0)
+	_flat(360.0, 0.0)
+	# 11) Ground-Slam: der Weg führt nur durch den Bruchboden in die Unterführung
+	_tut_hint(x + 60.0, "tut_slam")
+	_flat(240.0, 0.0)
+	var sy := y
+	var cx0 := x
+	_step(120.0)
+	_rough(560.0, 0.0, 0.0)
+	var cx1 := x
+	_step(-120.0)
+	_flat(380.0, 0.0)
+	_block(Rect2(cx0 - 2.0, sy - 2.0, 204.0, 26.0), "weak")
+	_block(Rect2(cx0 + 200.0, sy - 2.0, (cx1 - 90.0) - (cx0 + 200.0), 26.0), "building")
+	_block(Rect2(cx0 + 300.0, sy - 520.0, 60.0, 520.0), "building")
+	_coin_line(cx0 + 40.0, cx1 - 120.0, sy + 90.0, 8)
+	# 12) Kampf: Schüssen per Dash ausweichen
+	_tut_hint(x + 80.0, "tut_combat")
+	var fight_x := x
+	_flat(900.0, 0.0)
+	_spawn("walker", Vector2(fight_x + 500.0, y - 34.0))
+	_spawn("gunner", Vector2(fight_x + 780.0, y - 34.0))
+	# Ziel
+	_tut_hint(x + 120.0, "tut_finish")
+	_flat(200.0, 0.0)
+	var gx := x + 120.0
+	_flat(600.0, 0.0)
+	out["goal"] = Vector2(gx, ground_y_at(gx))
+	_flat(200.0, 0.0)
+	_end_piece()
+	_block(Rect2(x - 20.0, y - 1200.0, 60.0, 1200.0 + 1500.0), "wall")
+	out["length"] = x
+	return out

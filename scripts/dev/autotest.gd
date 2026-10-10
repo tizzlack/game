@@ -35,6 +35,8 @@ func _ready() -> void:
 			duration = float(a.substr(7))
 		elif a == "--god":
 			god = true
+		elif a == "--tutorial":
+			opts["tutorial"] = true
 		elif a.begins_with("--weapon="):
 			opts["weapon"] = a.substr(9)
 		elif a.begins_with("--mode="):
