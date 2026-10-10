@@ -18,12 +18,16 @@ var mode := "coop"  # coop | versus
 var players := {}  # peer_id -> {"name", "skin", "weapon", "ready"}
 var my_name := ""
 var lobby_id := 0
+var lobby_code := ""
 var in_game := false
+const CODE_CHARS := "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # ohne L, I, O, 0, 1 (L markiert LAN-Codes)
 var game  # laufendes game.gd
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	my_name = OS.get_environment("USERNAME") if OS.has_environment("USERNAME") else OS.get_environment("USER")
+	if SteamService.my_name() != "":
+		my_name = SteamService.my_name()
 	if my_name == "":
 		my_name = "Player"
 	multiplayer.peer_connected.connect(_on_peer_connected)
@@ -56,7 +60,78 @@ func host_lan() -> bool:
 		_fail(L.t("net_port") % PORT)
 		return false
 	_begin_host(peer)
+	lobby_code = encode_lan(local_ip())
+	lobby_changed.emit()
 	return true
+
+# Lobby erstellen: über Steam (Relay, kein Portfreigabe nötig), sonst im LAN
+func host_auto() -> void:
+	if steam_available():
+		host_steam()
+	else:
+		host_lan()
+
+# Beitreten per Code: Steam-Code (6 Zeichen), LAN-Code (beginnt mit L) oder direkt eine IP
+func join_code(code: String) -> void:
+	code = code.strip_edges().to_upper().replace(" ", "")
+	if code == "":
+		return
+	if code.count(".") == 3:
+		join_lan(code)
+	elif code.begins_with("L") and code.length() == 8:
+		var ip := decode_lan(code)
+		if ip == "":
+			_fail(L.t("net_code_not_found"))
+		else:
+			join_lan(ip)
+	elif steam_available():
+		var s: Object = SteamService.steam
+		s.call("addRequestLobbyListStringFilter", "game", "glowline", 0)
+		s.call("addRequestLobbyListStringFilter", "code", code, 0)
+		s.call("addRequestLobbyListDistanceFilter", 3)
+		s.call("requestLobbyList")
+	else:
+		_fail(L.t("net_code_not_found"))
+
+func local_ip() -> String:
+	var best := "127.0.0.1"
+	for a in IP.get_local_addresses():
+		if a.count(".") != 3 or a.begins_with("127."):
+			continue
+		if a.begins_with("192.168.") or a.begins_with("10.") or a.begins_with("172."):
+			return a
+		best = a
+	return best
+
+static func encode_lan(ip: String) -> String:
+	var parts := ip.split(".")
+	if parts.size() != 4:
+		return ""
+	var v := 0
+	for p in parts:
+		v = v * 256 + clampi(int(p), 0, 255)
+	var out := ""
+	for i in 7:
+		out = CODE_CHARS[v % CODE_CHARS.length()] + out
+		v = v / CODE_CHARS.length()
+	return "L" + out
+
+static func decode_lan(code: String) -> String:
+	var v := 0
+	for ch in code.substr(1):
+		var i := CODE_CHARS.find(ch)
+		if i < 0:
+			return ""
+		v = v * CODE_CHARS.length() + i
+	if v < 0 or v > 0xFFFFFFFF:
+		return ""
+	return "%d.%d.%d.%d" % [(v >> 24) & 255, (v >> 16) & 255, (v >> 8) & 255, v & 255]
+
+func _random_code() -> String:
+	var out := ""
+	for i in 6:
+		out += CODE_CHARS[randi() % CODE_CHARS.length()]
+	return out
 
 func join_lan(ip: String) -> bool:
 	var peer := ENetMultiplayerPeer.new()
@@ -76,8 +151,8 @@ func host_steam() -> void:
 	if not steam_available():
 		_fail(L.t("net_no_steam"))
 		return
-	# 1 = nur Freunde, max. 4 Spieler
-	SteamService.steam.call("createLobby", 1, MAX_PLAYERS)
+	# 2 = öffentlich (nötig, damit die Lobby per Code gefunden wird), max. 4 Spieler
+	SteamService.steam.call("createLobby", 2, MAX_PLAYERS)
 
 func invite_friends() -> void:
 	if use_steam and lobby_id != 0:
@@ -100,6 +175,7 @@ func leave() -> void:
 	if use_steam and lobby_id != 0 and SteamService.enabled:
 		SteamService.steam.call("leaveLobby", lobby_id)
 	lobby_id = 0
+	lobby_code = ""
 	if multiplayer.multiplayer_peer:
 		multiplayer.multiplayer_peer.close()
 	multiplayer.multiplayer_peer = null
@@ -124,7 +200,8 @@ func _connect_steam() -> void:
 	if not SteamService.enabled:
 		return
 	var s: Object = SteamService.steam
-	for pair in [["lobby_created", _on_lobby_created], ["lobby_joined", _on_lobby_joined], ["join_requested", _on_join_requested]]:
+	for pair in [["lobby_created", _on_lobby_created], ["lobby_joined", _on_lobby_joined], ["join_requested", _on_join_requested],
+			["lobby_match_list", _on_lobby_match_list]]:
 		if s.has_signal(pair[0]):
 			s.connect(pair[0], pair[1])
 	# Start über Steam-Einladung: +connect_lobby <id>
@@ -141,10 +218,12 @@ func _on_lobby_created(result: int, id: int) -> void:
 	use_steam = true
 	var peer: MultiplayerPeer = ClassDB.instantiate("SteamMultiplayerPeer")
 	peer.call("create_host", 0)
+	lobby_code = _random_code()
 	SteamService.steam.call("setLobbyData", id, "name", my_name + "'s GLOWLINE")
+	SteamService.steam.call("setLobbyData", id, "game", "glowline")
+	SteamService.steam.call("setLobbyData", id, "code", lobby_code)
 	SteamService.steam.call("setLobbyJoinable", id, true)
 	_begin_host(peer)
-	invite_friends()
 
 func _on_lobby_joined(id: int, _perms: int, _locked: bool, response: int) -> void:
 	if response != 1:
@@ -162,6 +241,12 @@ func _on_lobby_joined(id: int, _perms: int, _locked: bool, response: int) -> voi
 	is_host = false
 	players = {}
 	lobby_changed.emit()
+
+func _on_lobby_match_list(lobbies: Array) -> void:
+	if lobbies.is_empty():
+		_fail(L.t("net_code_not_found"))
+		return
+	join_steam(int(lobbies[0]))
 
 func _on_join_requested(id: int, _friend: int) -> void:
 	if active:

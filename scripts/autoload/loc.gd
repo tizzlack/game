@@ -15,13 +15,20 @@ func t(key: String) -> String:
 	return key
 
 const DE := {
+	"net_create": "LOBBY ERSTELLEN",
+	"net_via_steam": "Über Steam (Spacewar-Test-App) – funktioniert über das Internet, ohne Portfreigabe.",
+	"net_enter_code": "CODE EINGEBEN",
+	"net_code": "CODE",
+	"net_copy": "KOPIEREN",
+	"net_code_hint": "Gib diesen Code deinen Freunden – sie tippen ihn unter MULTIPLAYER ein.",
+	"net_code_not_found": "Keine Lobby mit diesem Code gefunden.",
 	"multiplayer": "MULTIPLAYER",
 	"net_name": "NAME",
 	"net_mode": "MODUS",
 	"net_coop": "KOOP",
 	"net_versus": "VERSUS",
 	"net_host_steam": "STEAM-LOBBY ERSTELLEN (FREUNDE)",
-	"net_steam_off": "Steam ist nicht aktiv. Freunde-Lobbys gehen nur in der Steam-Version (siehe STEAM.md).",
+	"net_steam_off": "Steam nicht aktiv: Lobby läuft im LAN (für Internet: GodotSteam installieren, siehe STEAM.md).",
 	"net_host_lan": "LAN-SPIEL HOSTEN",
 	"net_join": "BEITRETEN",
 	"net_lobby": "LOBBY",
@@ -288,13 +295,20 @@ const DE := {
 }
 
 const EN := {
+	"net_create": "CREATE LOBBY",
+	"net_via_steam": "Via Steam (Spacewar test app) – works over the internet without port forwarding.",
+	"net_enter_code": "ENTER CODE",
+	"net_code": "CODE",
+	"net_copy": "COPY",
+	"net_code_hint": "Give this code to your friends – they enter it under MULTIPLAYER.",
+	"net_code_not_found": "No lobby found with this code.",
 	"multiplayer": "MULTIPLAYER",
 	"net_name": "NAME",
 	"net_mode": "MODE",
 	"net_coop": "CO-OP",
 	"net_versus": "VERSUS",
 	"net_host_steam": "CREATE STEAM LOBBY (FRIENDS)",
-	"net_steam_off": "Steam is not active. Friend lobbies only work in the Steam version (see STEAM.md).",
+	"net_steam_off": "Steam not active: lobby runs on LAN (for internet play install GodotSteam, see STEAM.md).",
 	"net_host_lan": "HOST LAN GAME",
 	"net_join": "JOIN",
 	"net_lobby": "LOBBY",

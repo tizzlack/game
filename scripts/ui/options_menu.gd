@@ -19,12 +19,13 @@ func _ready() -> void:
 	_slider(v, "vol_music", "music")
 	_slider(v, "vol_sfx", "sfx")
 	_slider(v, "screen_shake", "shake")
-	_check(v, "fullscreen", "fullscreen")
-	_check(v, "vsync", "vsync")
-	_check(v, "dmg_numbers", "dmg_numbers")
-	_check(v, "show_fps", "show_fps")
-	_check(v, "vibration", "vibration")
-	_check(v, "aim_assist", "aim_assist")
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 30)
+	grid.add_theme_constant_override("v_separation", 6)
+	for k in ["fullscreen", "vsync", "dmg_numbers", "show_fps", "vibration", "aim_assist"]:
+		_check(grid, k, k)
+	v.add_child(grid)
 	var lang_row := UI.hbox(20)
 	var ll := UI.label(L.t("language"), 20)
 	ll.custom_minimum_size = Vector2(260, 0)
@@ -79,15 +80,15 @@ func _slider(parent: Control, key: String, setting: String) -> HSlider:
 	return s
 
 func _check(parent: Control, key: String, setting: String) -> void:
-	var row := UI.hbox(20)
-	var l := UI.label(L.t(key), 20)
-	l.custom_minimum_size = Vector2(260, 0)
+	var row := UI.hbox(12)
+	var l := UI.label(L.t(key), 17)
+	l.custom_minimum_size = Vector2(200, 0)
 	row.add_child(l)
 	var b := Button.new()
 	b.toggle_mode = true
 	b.button_pressed = Save.setting(setting)
 	b.text = L.t("on") if b.button_pressed else L.t("off")
-	b.custom_minimum_size = Vector2(260, 38)
+	b.custom_minimum_size = Vector2(110, 36)
 	b.toggled.connect(func(on):
 		b.text = L.t("on") if on else L.t("off")
 		Sfx.play("ui_select", -6.0)

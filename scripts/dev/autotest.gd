@@ -59,7 +59,7 @@ func _ready() -> void:
 			Net.host_lan()
 			Net.set_mode(net_mode)
 		else:
-			Net.join_lan("127.0.0.1")
+			Net.join_code(Net.encode_lan("127.0.0.1"))
 	elif mode == "menu":
 		main.show_menu()
 	else:
@@ -223,6 +223,10 @@ func _menu_tour(delta: float) -> void:
 		8: _shot("menu_stats")
 		9: m.show_options()
 		10: _shot("menu_options")
-		11:
+		11: m.show_multiplayer()
+		12: _shot("menu_multiplayer")
+		13: m.show_home()
+		14: _shot("menu_home2")
+		15:
 			duration = t
 	menu_step += 1

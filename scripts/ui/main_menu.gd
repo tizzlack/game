@@ -115,6 +115,9 @@ func show_home() -> void:
 	left.add_child(UI.button(L.t("stats"), show_stats))
 	left.add_child(UI.button(L.t("options"), show_options))
 	left.add_child(UI.button(L.t("quit"), func(): quit_game.emit()))
+	for c in left.get_children():
+		if c is Button:
+			c.custom_minimum_size.y = 44
 	content.add_child(left)
 	_bank_corner()
 	var best := UI.label(L.t("best_score") + ": " + UI.fmt_num(Save.stat("best_score")), 16, UI.DIM, "mono")
@@ -450,33 +453,35 @@ func show_multiplayer() -> void:
 			mode_row.add_child(b)
 		v.add_child(mode_row)
 		v.add_child(UI.spacer(4))
-		v.add_child(UI.label("STEAM", 16, UI.ACCENT, "mono"))
-		var steam_btn := UI.button(L.t("net_host_steam"), func():
+		var host_btn := UI.button(L.t("net_create"), func():
 			Net.mode = host_mode
 			net_message = ""
-			Net.host_steam(), 420)
-		steam_btn.disabled = not Net.steam_available()
-		v.add_child(steam_btn)
-		if not Net.steam_available():
-			v.add_child(UI.label(L.t("net_steam_off"), 13, Color(1, 1, 1, 0.4), "mono"))
-		v.add_child(UI.spacer(4))
-		v.add_child(UI.label("LAN / IP", 16, UI.ACCENT, "mono"))
-		var host_btn := UI.button(L.t("net_host_lan"), func():
-			net_message = ""
-			if Net.host_lan():
-				Net.set_mode(host_mode), 420)
+			Net.host_auto(), 420)
 		v.add_child(host_btn)
+		v.add_child(UI.label(L.t("net_via_steam") if Net.steam_available() else L.t("net_steam_off"), 13, Color(1, 1, 1, 0.45), "mono"))
+		if Net.steam_available():
+			v.add_child(UI.button(L.t("net_host_lan"), func():
+				Net.mode = host_mode
+				net_message = ""
+				Net.host_lan(), 420))
+		v.add_child(UI.spacer(6))
+		v.add_child(UI.label(L.t("net_enter_code"), 16, UI.ACCENT, "mono"))
 		var join_row := UI.hbox(10)
-		var ip := LineEdit.new()
-		ip.placeholder_text = "127.0.0.1"
-		ip.text = Save.data.get("net_ip", "")
-		ip.custom_minimum_size = Vector2(250, 44)
-		join_row.add_child(ip)
-		join_row.add_child(UI.button(L.t("net_join"), func():
+		var code := LineEdit.new()
+		code.placeholder_text = "QX7K2M"
+		code.text = Save.data.get("net_code", "")
+		code.max_length = 15
+		code.custom_minimum_size = Vector2(250, 44)
+		code.add_theme_font_override("font", UI.font("mono"))
+		code.add_theme_font_size_override("font_size", 24)
+		var do_join := func():
 			net_message = ""
-			Save.data["net_ip"] = ip.text
+			Save.data["net_code"] = code.text
 			Save.save_data()
-			Net.join_lan(ip.text), 160))
+			Net.join_code(code.text)
+		code.text_submitted.connect(func(_t): do_join.call())
+		join_row.add_child(code)
+		join_row.add_child(UI.button(L.t("net_join"), do_join, 160))
 		v.add_child(join_row)
 		if net_message != "":
 			v.add_child(UI.label(net_message, 15, UI.RED, "mono"))
@@ -484,10 +489,21 @@ func show_multiplayer() -> void:
 		back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		v.add_child(back)
 		content.add_child(UI.center(p))
-		_focus_first(host_btn if steam_btn.disabled else steam_btn)
+		_focus_first(host_btn)
 		return
 	# Lobby
 	_header(v, L.t("net_lobby") + "  ·  " + L.t("net_" + Net.mode))
+	if Net.is_host and Net.lobby_code != "":
+		var crow := UI.hbox(16)
+		crow.alignment = BoxContainer.ALIGNMENT_CENTER
+		crow.add_child(UI.label(L.t("net_code"), 18, UI.DIM, "mono"))
+		var cl := UI.label(Net.lobby_code, 40, Color(1.0, 0.9, 0.5), "mono")
+		crow.add_child(cl)
+		crow.add_child(UI.button(L.t("net_copy"), func():
+			DisplayServer.clipboard_set(Net.lobby_code)
+			Sfx.play("coin", -6.0), 150))
+		v.add_child(crow)
+		v.add_child(UI.label(L.t("net_code_hint"), 13, Color(1, 1, 1, 0.45), "mono"))
 	if Net.players.is_empty():
 		v.add_child(UI.label(L.t("net_connecting"), 18, UI.DIM, "mono"))
 	for id in Net.players:
@@ -506,11 +522,7 @@ func show_multiplayer() -> void:
 		row.custom_minimum_size = Vector2(640, 0)
 		v.add_child(row)
 	if Net.is_host and not Net.use_steam:
-		var ips: Array = []
-		for a in IP.get_local_addresses():
-			if a.count(".") == 3 and not a.begins_with("127."):
-				ips.append(a)
-		v.add_child(UI.label(L.t("net_your_ip") + ": " + (", ".join(ips) if ips.size() > 0 else "127.0.0.1") + "  (Port %d)" % Net.PORT, 14, UI.DIM, "mono"))
+		v.add_child(UI.label(L.t("net_your_ip") + ": " + Net.local_ip() + "  (Port %d)" % Net.PORT, 13, UI.DIM, "mono"))
 	if Net.players.size() < 2:
 		v.add_child(UI.label(L.t("net_need_players"), 15, Color(1, 1, 1, 0.45), "mono"))
 	v.add_child(UI.spacer(6))
