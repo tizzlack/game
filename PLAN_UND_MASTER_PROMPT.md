@@ -1,5 +1,18 @@
 # Neon Run & Gun – Plan und Master-Prompt (Godot 4)
 
+## Stand: umgesetzt (Projekt GLOWLINE)
+- [x] Neon-Look wie Vorlage: Bloom, Neonröhren-Kern, zackige Leuchtlinien, Sternblitze, Konfetti-Funken
+- [x] Zerstörbares Gelände (treppenförmige Löcher, Splitter), Bruchböden
+- [x] Movement: Wall-Slide/Walljump, Rutschen, 8-Richtungs-Dash, Super-Sprung, Ground-Slam, Ecken-Korrektur
+- [x] Level-Bausteine für das Movement: Schächte, Tunnel, Dash-Lücken, Sprungfelder, Schanzen, Säulen, Berge
+- [x] Spielbares Tutorial mit 12 Stationen
+- [x] 6 Gegnertypen + Boss mit 2 Phasen, 3 Welten + Endlos-Modus
+- [x] Roguelite: 23 Karten, Werkstatt, 5 Waffen, Skins, Hitze, Modifikatoren, tägliche Herausforderung
+- [x] Multiplayer: Koop 2–4 und Versus, Steam-Lobby per Code (Spacewar 480) oder LAN
+- [x] Controller-Support, Vibration, Zielhilfe, Deutsch/Englisch, 16 Erfolge
+- [x] Synthetische Sounds und Musik, Export-Presets, Doku (README.md, STEAM.md)
+- [ ] Offen: eigene App-ID, Store-Grafiken, Trailer, Feinschliff nach Spieltests
+
 ## Was die Screenshots zeigen
 - Seitlich scrollender 2D-Run-and-Gun, Spieler läuft, springt, schießt (Maus zielt, Fadenkreuz)
 - Alles im **Neon-Vektor-Look**: leuchtende Umrisse auf schwarzem Hintergrund, kein gefülltes Sprite
